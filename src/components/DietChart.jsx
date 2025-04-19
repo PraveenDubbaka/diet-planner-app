@@ -39,6 +39,7 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import FoodItem from './FoodItem';
 import { getAllFoodNames, getFoodDetails, calculateNutrition } from '../data/foodDatabase';
 import { UserContext } from '../contexts/UserContext';
+import { createFilterOptions } from '@mui/material/Autocomplete';
 
 // Sample meal plan data structure based on goals
 const mealPlans = {
@@ -612,6 +613,19 @@ const DietChart = ({ userData }) => {
   const summaryRef = useRef(null);
   const bottomSectionRef = useRef(null); // Add ref for bottom section
   
+  // Add state for tracking last saved time
+  const [lastSavedTime, setLastSavedTime] = useState(null);
+  // Add state for success message visibility
+  const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
+  // Add state for tracking if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(true);
+  // Hide success alert when new edits are made
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      setSaveSuccessVisible(false);
+    }
+  }, [hasUnsavedChanges]);
+
   // Initialize missing state variables
   const [userMealPlan, setUserMealPlan] = useState(null);
   const [mealOrder, setMealOrder] = useState([]);
@@ -669,54 +683,76 @@ const DietChart = ({ userData }) => {
     };
   }, []);
   
-  // Initialize user meal plan from the default meal plans
-  useEffect(() => {
-    if (userData && !userMealPlan) {
-      const { goal, dietType, dietPreference } = userData;
-      
-      // First check for specific diet type (keto, vegan, etc.)
-      // Then fall back to goal-based diets (lose, maintain, gain)
-      let defaultMealPlan;
-      
-      // First prioritize diet type (keto, vegetarian, etc.)
-      if (dietType && dietTypeMealPlans[dietType]) {
-        defaultMealPlan = dietTypeMealPlans[dietType];
-      } 
-      // Then look for goal-based plans (lose, maintain, gain)
-      else if (goal && mealPlans[goal]) {
-        defaultMealPlan = mealPlans[goal];
-      } 
-      // Fall back to maintenance as default
-      else {
-        defaultMealPlan = mealPlans.maintain;
-      }
-      
-      // Create a deep copy of the meal plan to avoid modifying the original
-      let mealPlanCopy = JSON.parse(JSON.stringify(defaultMealPlan));
-      
-      // Apply dietary preferences if needed
-      if (dietPreference === 'vegan' && dietTypeMealPlans.vegan) {
-        mealPlanCopy = JSON.parse(JSON.stringify(dietTypeMealPlans.vegan));
-      } else if (dietPreference === 'vegetarian' && dietTypeMealPlans.vegetarian) {
-        mealPlanCopy = JSON.parse(JSON.stringify(dietTypeMealPlans.vegetarian));
-      }
-      
-      // Apply gluten-free filtering if needed
-      if (userData.isGlutenFree) {
-        mealPlanCopy = filterGlutenFoods(mealPlanCopy);
-      }
-      
-      setUserMealPlan(mealPlanCopy);
-      
-      // Set initial meal order
-      setMealOrder(Object.keys(mealPlanCopy));
-    }
-  }, [userData, userMealPlan]);
+  // LocalStorage persistence key (per user)
+  const getDietChartStorageKey = (userId) => `dietChart_${userId}`;
 
-  // Load food options for autocomplete
+  // Load from localStorage on mount (and only set defaults if nothing is found)
   useEffect(() => {
-    // Initialize food options
-    setFoodOptions(getAllFoodNames());
+    if (userData && userData.id) {
+      const saved = localStorage.getItem(getDietChartStorageKey(userData.id));
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.userMealPlan && parsed.mealOrder) {
+            setUserMealPlan(parsed.userMealPlan);
+            setMealOrder(parsed.mealOrder);
+            return; // Don't set defaults if we loaded from storage
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      // If nothing in storage, set defaults
+      if (!userMealPlan) {
+        const { goal, dietType, dietPreference } = userData;
+        let defaultMealPlan;
+        if (dietType && dietTypeMealPlans[dietType]) {
+          defaultMealPlan = dietTypeMealPlans[dietType];
+        } else if (goal && mealPlans[goal]) {
+          defaultMealPlan = mealPlans[goal];
+        } else {
+          defaultMealPlan = mealPlans.maintain;
+        }
+        let mealPlanCopy = JSON.parse(JSON.stringify(defaultMealPlan));
+        if (dietPreference === 'vegan' && dietTypeMealPlans.vegan) {
+          mealPlanCopy = JSON.parse(JSON.stringify(dietTypeMealPlans.vegan));
+        } else if (dietPreference === 'vegetarian' && dietTypeMealPlans.vegetarian) {
+          mealPlanCopy = JSON.parse(JSON.stringify(dietTypeMealPlans.vegetarian));
+        }
+        if (userData.isGlutenFree) {
+          mealPlanCopy = filterGlutenFoods(mealPlanCopy);
+        }
+        setUserMealPlan(mealPlanCopy);
+        setMealOrder(Object.keys(mealPlanCopy));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData && userData.id]);
+
+  // Save to localStorage whenever meal plan/order changes
+  useEffect(() => {
+    if (userData && userData.id && userMealPlan && mealOrder) {
+      localStorage.setItem(
+        getDietChartStorageKey(userData.id),
+        JSON.stringify({ userMealPlan, mealOrder })
+      );
+    }
+  }, [userData && userData.id, userMealPlan, mealOrder]);
+
+  // Load food options for autocomplete and update when USDA foods are loaded
+  useEffect(() => {
+    // Initial load
+    getAllFoodNames().then(setFoodOptions);
+
+    // Handler for USDA foods loaded event
+    const handleFoodDatabaseLoaded = () => {
+      getAllFoodNames().then(setFoodOptions);
+    };
+
+    window.addEventListener('foodDatabaseLoaded', handleFoodDatabaseLoaded);
+    return () => {
+      window.removeEventListener('foodDatabaseLoaded', handleFoodDatabaseLoaded);
+    };
   }, []);
   
   // Handle food selection from autocomplete
@@ -762,33 +798,77 @@ const DietChart = ({ userData }) => {
   };
   
   // Handle saving diet chart
-  const handleSaveDietChart = () => {
+  const handleSaveDietChart = async () => {
+    // Disable save button immediately to prevent duplicates
+    setHasUnsavedChanges(false);
     if (!isAuthenticated) {
-      setSaveSnackbarMessage('Please log in to save your diet plan');
-      setSaveSnackbarSeverity('warning');
-      setSaveSnackbarOpen(true);
+      alert('Please log in to save your diet plan');
       return;
     }
 
     const dietChartData = {
       mealPlan: userMealPlan,
       mealOrder: mealOrder,
-      mealDisplayNames: mealDisplayNames, // Save the display names with spaces
+      mealDisplayNames: mealDisplayNames,
       totalNutrients: calculateTotalNutrients(),
       dateCreated: new Date().toISOString()
     };
 
-    const result = saveDietChart(dietChartData);
-    
-    if (result.success) {
-      setSaveSnackbarMessage('Diet plan saved successfully!');
-      setSaveSnackbarSeverity('success');
-    } else {
-      setSaveSnackbarMessage(result.message || 'Failed to save diet plan. Please try again.');
+    try {
+      // Show the success message immediately while the save is in progress
+      setSaveSuccessVisible(true);
+      
+      const saveResult = await saveDietChart(dietChartData);
+      
+      if (saveResult && saveResult.success) {
+        // Create a new Date object explicitly
+        const savedTime = new Date();
+        
+        // Update timestamp display with the current time
+        console.log("Setting timestamp to:", savedTime.toLocaleString());
+        setLastSavedTime(savedTime);
+        
+        // Keep success message visible for 5 seconds
+        setTimeout(() => {
+          setSaveSuccessVisible(false);
+        }, 5000);
+        
+        // Show snackbar feedback
+        setSaveSnackbarMessage('Diet plan saved successfully!');
+        setSaveSnackbarSeverity('success');
+        setSaveSnackbarOpen(true);
+
+        // Already disabled; remain disabled until edits
+      } else {
+        // Hide success message on error
+        setSaveSuccessVisible(false);
+        setLastSavedTime(null);
+        
+        // Re-enable save button since save failed
+        setHasUnsavedChanges(true);
+        
+        // Show error alerts
+        alert('Unable to save diet plan. Please try again.');
+        setSaveSnackbarMessage('Failed to save diet plan. Please try again.');
+        setSaveSnackbarSeverity('error');
+        setSaveSnackbarOpen(true);
+      }
+    } catch (error) {
+      console.error("Error saving diet plan:", error);
+      
+      // Hide success message on error
+      setSaveSuccessVisible(false);
+      setLastSavedTime(null);
+      
+      // Re-enable save button due to error
+      setHasUnsavedChanges(true);
+      
+      // Show error alerts
+      alert('An error occurred while saving the diet plan. Please try again.');
+      setSaveSnackbarMessage('An error occurred while saving the diet plan.');
       setSaveSnackbarSeverity('error');
+      setSaveSnackbarOpen(true);
     }
-    
-    setSaveSnackbarOpen(true);
   };
 
   // Handle snackbar close
@@ -836,6 +916,7 @@ const DietChart = ({ userData }) => {
     const [movedItem] = items.splice(index, 1);
     items.splice(index - 1, 0, movedItem);
     setMealOrder(items);
+    setHasUnsavedChanges(true);
   };
 
   const moveMealDown = (index) => {
@@ -844,6 +925,7 @@ const DietChart = ({ userData }) => {
     const [movedItem] = items.splice(index, 1);
     items.splice(index + 1, 0, movedItem);
     setMealOrder(items);
+    setHasUnsavedChanges(true);
   };
   
   // Menu handlers
@@ -880,6 +962,7 @@ const DietChart = ({ userData }) => {
     
     setEditingMealId(null);
     setEditedMealName('');
+    setHasUnsavedChanges(true);
   };
   
   // Delete meal handler
@@ -889,6 +972,7 @@ const DietChart = ({ userData }) => {
     
     setUserMealPlan(updatedMealPlan);
     setMealOrder(mealOrder.filter(meal => meal !== currentMealForMenu));
+    setHasUnsavedChanges(true);
     
     handleMealMenuClose();
   };
@@ -919,6 +1003,7 @@ const DietChart = ({ userData }) => {
     
     setUserMealPlan(updatedMealPlan);
     setMealOrder([...mealOrder, finalMealKey]);
+    setHasUnsavedChanges(true);
     
     // Open the rename dialog for the new meal
     setEditingMealId(finalMealKey);
@@ -952,6 +1037,7 @@ const DietChart = ({ userData }) => {
     }
     
     setUserMealPlan(updatedMealPlan);
+    setHasUnsavedChanges(true);
     handleCloseEditFoodDialog();
   };
   
@@ -976,6 +1062,7 @@ const DietChart = ({ userData }) => {
     const updatedMealPlan = { ...userMealPlan };
     updatedMealPlan[mealKey].splice(foodIndex, 1);
     setUserMealPlan(updatedMealPlan);
+    setHasUnsavedChanges(true);
     setDeleteConfirmOpen(false);
   };
 
@@ -1075,7 +1162,7 @@ const DietChart = ({ userData }) => {
   const { totalCalories, totalProtein, totalCarbs, totalFats, totalFiber } = calculateTotalNutrients();
 
   return (
-    <Paper elevation={3} sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+    <>
       <div id="diet-plan-content">
         <Typography variant="h5" gutterBottom align="center" sx={{ mb: 3 }}>
           Your Personalized Diet Plan
@@ -1563,8 +1650,10 @@ const DietChart = ({ userData }) => {
           <Grid container spacing={2}>
             <Grid item xs={6} sm={2.4}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: `4px solid ${theme.palette.primary.main}` }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="textSecondary">
+                <CardContent sx={{ 
+                  p: { xs: 0.5, md: 1.5 }
+                }}>
+                  <Typography variant="caption" color="textSecondary">
                     Calories
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -1575,8 +1664,10 @@ const DietChart = ({ userData }) => {
             </Grid>
             <Grid item xs={6} sm={2.4}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: `4px solid ${theme.palette.primary.main}` }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="textSecondary">
+                <CardContent sx={{ 
+                  p: { xs: 0.5, md: 1.5 }
+                }}>
+                  <Typography variant="caption" color="textSecondary">
                     Protein
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -1587,8 +1678,10 @@ const DietChart = ({ userData }) => {
             </Grid>
             <Grid item xs={6} sm={2.4}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: `4px solid ${theme.palette.primary.main}` }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="textSecondary">
+                <CardContent sx={{ 
+                  p: { xs: 0.5, md: 1.5 }
+                }}>
+                  <Typography variant="caption" color="textSecondary">
                     Carbs
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -1599,8 +1692,10 @@ const DietChart = ({ userData }) => {
             </Grid>
             <Grid item xs={6} sm={2.4}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: `4px solid ${theme.palette.primary.main}` }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="textSecondary">
+                <CardContent sx={{ 
+                  p: { xs: 0.5, md: 1.5 }
+                }}>
+                  <Typography variant="caption" color="textSecondary">
                     Fats
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -1611,8 +1706,10 @@ const DietChart = ({ userData }) => {
             </Grid>
             <Grid item xs={6} sm={2.4}>
               <Card elevation={2} sx={{ height: '100%', borderLeft: `4px solid ${theme.palette.primary.main}` }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="textSecondary">
+                <CardContent sx={{ 
+                  p: { xs: 0.5, md: 1.5 }
+                }}>
+                  <Typography variant="caption" color="textSecondary">
                     Fiber
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
@@ -1624,7 +1721,7 @@ const DietChart = ({ userData }) => {
           </Grid>
         </Box>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }} className="no-print">
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }} className="no-print">
           <Button 
             variant="contained" 
             color="primary" 
@@ -1634,15 +1731,102 @@ const DietChart = ({ userData }) => {
           >
             Print Diet Chart
           </Button>
-          <Button 
-            variant="contained" 
-            color="success" 
-            startIcon={<SaveIcon />}
-            onClick={handleSaveDietChart}
-            sx={{ borderRadius: 2 }}
-          >
-            Save Diet Plan
-          </Button>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            {/* Display status message in a prominent way */}
+            {saveSuccessVisible && (
+              <Card 
+                elevation={4} 
+                sx={{ 
+                  mb: 2, 
+                  bgcolor: '#e8f5e9', 
+                  border: '1px solid #4caf50',
+                  px: 2,
+                  py: 1,
+                  borderRadius: 2,
+                  minWidth: 250,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box 
+                    sx={{ 
+                      bgcolor: '#4caf50',
+                      borderRadius: '50%',
+                      width: 24,
+                      height: 24,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: '16px'
+                    }}
+                  >
+                    ✓
+                  </Box>
+                  <Typography variant="body1" fontWeight="medium" color="primary.dark">
+                    Diet plan saved successfully!
+                  </Typography>
+                </Box>
+              </Card>
+            )}
+            
+            <Button 
+              variant="contained" 
+              color="success" 
+              startIcon={<SaveIcon />}
+              onClick={handleSaveDietChart}
+              disabled={!hasUnsavedChanges}
+              sx={{ 
+                borderRadius: 2,
+                position: 'relative',
+                zIndex: 1
+              }}
+            >
+              {hasUnsavedChanges ? "Save Diet Plan" : "Saved"}
+            </Button>
+            
+            {/* Timestamp Card - Shown independent of save success message */}
+            {lastSavedTime && (
+              <Card 
+                elevation={2}
+                sx={{ 
+                  mt: 2, 
+                  p: 1.5, 
+                  borderRadius: 2,
+                  border: '1px solid #bdbdbd',
+                  minWidth: 230,
+                  bgcolor: 'rgba(76, 175, 80, 0.04)'
+                }}
+              >
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontStyle: 'italic',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1
+                  }}
+                >
+                  <Box 
+                    component="span" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    🕒
+                  </Box>
+                  Last saved: {lastSavedTime.toLocaleString()}
+                </Typography>
+              </Card>
+            )}  
+          </Box>
         </Box>
       </div>
 
@@ -1685,10 +1869,7 @@ const DietChart = ({ userData }) => {
                 justifyContent: 'center'
               }}>
                 <CardContent sx={{ 
-                  p: { xs: 0.5, md: 1.5 }, 
-                  '&:last-child': { pb: { xs: 0.5, md: 1.5 } },
-                  textAlign: 'center',
-                  width: '100%'
+                  p: { xs: 0.5, md: 1.5 }
                 }}>
                   <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' } }}>
                     Cal
@@ -1711,10 +1892,7 @@ const DietChart = ({ userData }) => {
                 justifyContent: 'center'
               }}>
                 <CardContent sx={{ 
-                  p: { xs: 0.5, md: 1.5 }, 
-                  '&:last-child': { pb: { xs: 0.5, md: 1.5 } },
-                  textAlign: 'center',
-                  width: '100%'
+                  p: { xs: 0.5, md: 1.5 }
                 }}>
                   <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' } }}>
                     P(g)
@@ -1738,10 +1916,7 @@ const DietChart = ({ userData }) => {
                 justifyContent: 'center'
               }}>
                 <CardContent sx={{ 
-                  p: { xs: 0.5, md: 1.5 }, 
-                  '&:last-child': { pb: { xs: 0.5, md: 1.5 } },
-                  textAlign: 'center',
-                  width: '100%'
+                  p: { xs: 0.5, md: 1.5 }
                 }}>
                   <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' } }}>
                     C(g)
@@ -1764,10 +1939,7 @@ const DietChart = ({ userData }) => {
                 justifyContent: 'center'
               }}>
                 <CardContent sx={{ 
-                  p: { xs: 0.5, md: 1.5 }, 
-                  '&:last-child': { pb: { xs: 0.5, md: 1.5 } },
-                  textAlign: 'center',
-                  width: '100%'
+                  p: { xs: 0.5, md: 1.5 }
                 }}>
                   <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' } }}>
                     F(g)
@@ -1790,10 +1962,7 @@ const DietChart = ({ userData }) => {
                 justifyContent: 'center'
               }}>
                 <CardContent sx={{ 
-                  p: { xs: 0.5, md: 1.5 }, 
-                  '&:last-child': { pb: { xs: 0.5, md: 1.5 } },
-                  textAlign: 'center',
-                  width: '100%'
+                  p: { xs: 0.5, md: 1.5 }
                 }}>
                   <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' } }}>
                     Fib(g)
@@ -1837,7 +2006,9 @@ const DietChart = ({ userData }) => {
               color="success" 
               size="small"
               startIcon={isMobile ? null : <SaveIcon />}
-              onClick={handleSaveDietChart}
+              // Removed the setTimeout logic here, rely on state update
+              onClick={handleSaveDietChart} 
+              disabled={!hasUnsavedChanges} // <--- Disable button if no unsaved changes
               sx={{ 
                 borderRadius: 2,
                 minWidth: { xs: '40px', md: 'auto' },
@@ -1845,7 +2016,7 @@ const DietChart = ({ userData }) => {
                 py: { xs: 0.5, md: 1 }
               }}
             >
-              {isMobile ? <SaveIcon fontSize="small" /> : "Save Diet Plan"}
+              {isMobile ? <SaveIcon fontSize="small" /> : (hasUnsavedChanges ? "Save" : "Saved")} {/* Update text */}
             </Button>
           </Box>
         </Box>
@@ -1856,6 +2027,8 @@ const DietChart = ({ userData }) => {
         <DialogTitle>Edit Food</DialogTitle>
         <DialogContent>
           <Autocomplete
+            openOnFocus
+            includeInputInList
             options={foodOptions}
             value={selectedFood}
             onChange={handleFoodSelect}
@@ -1894,7 +2067,7 @@ const DietChart = ({ userData }) => {
             fullWidth
             margin="dense"
             value={editedFood.calories}
-            onChange={(e) => setEditedFood({ ...editedFood, calories: e.target.value })}
+            disabled
           />
           <TextField
             label="Protein"
@@ -1902,7 +2075,7 @@ const DietChart = ({ userData }) => {
             fullWidth
             margin="dense"
             value={editedFood.protein}
-            onChange={(e) => setEditedFood({ ...editedFood, protein: e.target.value })}
+            disabled
           />
           <TextField
             label="Carbs"
@@ -1910,7 +2083,7 @@ const DietChart = ({ userData }) => {
             fullWidth
             margin="dense"
             value={editedFood.carbs}
-            onChange={(e) => setEditedFood({ ...editedFood, carbs: e.target.value })}
+            disabled
           />
           <TextField
             label="Fats"
@@ -1918,7 +2091,7 @@ const DietChart = ({ userData }) => {
             fullWidth
             margin="dense"
             value={editedFood.fats}
-            onChange={(e) => setEditedFood({ ...editedFood, fats: e.target.value })}
+            disabled
           />
           <TextField
             label="Fiber"
@@ -1926,7 +2099,7 @@ const DietChart = ({ userData }) => {
             fullWidth
             margin="dense"
             value={editedFood.fiber}
-            onChange={(e) => setEditedFood({ ...editedFood, fiber: e.target.value })}
+            disabled
           />
         </DialogContent>
         <DialogActions>
@@ -1957,14 +2130,29 @@ const DietChart = ({ userData }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Save Feedback Snackbar */}
+      {/* Save Feedback Snackbar - Modified to ensure visibility */}
       <Snackbar 
         open={saveSnackbarOpen} 
         autoHideDuration={6000} 
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        sx={{ 
+          zIndex: 9999,
+          position: 'fixed',
+          bottom: { xs: '80px', md: '20px' } // Ensure it's visible on mobile devices
+        }}
       >
-        <Alert onClose={handleSnackbarClose} severity={saveSnackbarSeverity} sx={{ width: '100%' }}>
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={saveSnackbarSeverity} 
+          sx={{ 
+            width: '100%', 
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontWeight: 'medium',
+            fontSize: '1rem'
+          }}
+          variant="filled"
+        >
           {saveSnackbarMessage}
         </Alert>
       </Snackbar>
@@ -2187,7 +2375,7 @@ const DietChart = ({ userData }) => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </>
   );
 };
 

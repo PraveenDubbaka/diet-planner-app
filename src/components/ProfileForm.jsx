@@ -19,14 +19,19 @@ import {
   useTheme,
   Tooltip,
   IconButton,
-  Alert
+  Alert,
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { UserContext } from '../contexts/UserContext';
 import { calculateBMI, calculateBMR, calculateTDEE, calculateCalorieNeeds, calculateMacros } from '../utils/calculations';
 
 const ProfileForm = () => {
-  const { userData, setUserData, isAuthenticated } = useContext(UserContext);
+  const { userData, setUserData, isAuthenticated, changeUserPassword } = useContext(UserContext);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -47,8 +52,31 @@ const ProfileForm = () => {
     dietaryRestrictions: [],
   });
 
+  // Add state for form validation errors
+  const [formErrors, setFormErrors] = useState({});
+  
+  // Password change state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordMessage, setPasswordMessage] = useState({
+    type: '',
+    text: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  
+  // Add state for updating profile
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
   // Add state for success message
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Add state for error message
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Add mobile-specific state for summary visibility
   const [showMobileSummary, setShowMobileSummary] = useState(true);
@@ -74,65 +102,229 @@ const ProfileForm = () => {
         weight: userData.weight || '',
         activityLevel: userData.activityLevel || 'moderate',
         goal: userData.goal || 'maintain',
-        dietType: userData.dietType || '',
+        dietType: userData.dietType || 'standard',
         isGlutenFree: userData.isGlutenFree || false,
         dietaryRestrictions: userData.dietaryRestrictions || [],
       });
     }
   }, [userData]);
 
+  // Validate form fields
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!form.name.trim()) {
+      errors.name = 'Name is required';
+    }
+    
+    if (!form.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(form.email)) {
+      errors.email = 'Email is invalid';
+    }
+    
+    if (!form.age) {
+      errors.age = 'Age is required';
+    } else if (isNaN(parseInt(form.age)) || parseInt(form.age) < 1 || parseInt(form.age) > 120) {
+      errors.age = 'Age must be between 1 and 120';
+    }
+    
+    if (!form.weight) {
+      errors.weight = 'Weight is required';
+    } else if (isNaN(parseFloat(form.weight)) || parseFloat(form.weight) < 20 || parseFloat(form.weight) > 500) {
+      errors.weight = 'Weight must be between 20 and 500 kg';
+    }
+    
+    if (!form.dietType) {
+      errors.dietType = 'Please select a diet type';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // Function to handle form submission
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     
-    // Convert height from feet/inches to cm
-    const heightInInches = parseInt(form.feet) * 12 + parseInt(form.inches);
-    const heightInCm = Math.round(heightInInches * 2.54);
+    // Clear previous messages
+    setSuccessMessage('');
+    setErrorMessage('');
     
-    // Calculate metrics
-    const bmi = calculateBMI(parseFloat(form.weight), heightInCm);
-    const bmr = calculateBMR(
-      parseFloat(form.weight),
-      heightInCm,
-      parseInt(form.age),
-      form.gender
-    );
-    const tdee = calculateTDEE(bmr, form.activityLevel);
-    const calorieNeeds = calculateCalorieNeeds(tdee, form.goal);
-    const macros = calculateMacros(calorieNeeds, form.dietType, form.goal);
+    // Validate all required fields
+    if (!validateForm()) {
+      setErrorMessage('Please fill in all required fields');
+      window.scrollTo(0, 0);
+      return;
+    }
     
-    // Create updated user data
-    const updatedUserData = {
-      ...userData,
-      name: form.name,
-      email: form.email,
-      age: parseInt(form.age),
-      gender: form.gender,
-      height: heightInCm,
-      weight: parseFloat(form.weight),
-      activityLevel: form.activityLevel,
-      goal: form.goal,
-      dietType: form.dietType,
-      isGlutenFree: form.isGlutenFree,
-      dietaryRestrictions: form.dietaryRestrictions,
-      // Add the calculated metrics
-      bmi,
-      bmr,
-      tdee,
-      calorieNeeds,
-      macros
-    };
+    setIsUpdatingProfile(true);
     
-    // Update user data in context
-    setUserData(updatedUserData);
+    try {
+      // Convert height from feet/inches to cm
+      const heightInInches = parseInt(form.feet) * 12 + parseInt(form.inches);
+      const heightInCm = Math.round(heightInInches * 2.54);
+      
+      // Calculate metrics
+      const bmi = calculateBMI(parseFloat(form.weight), heightInCm);
+      const bmr = calculateBMR(
+        parseFloat(form.weight),
+        heightInCm,
+        parseInt(form.age),
+        form.gender
+      );
+      const tdee = calculateTDEE(bmr, form.activityLevel);
+      const calorieNeeds = calculateCalorieNeeds(tdee, form.goal);
+      const macros = calculateMacros(calorieNeeds, form.dietType, form.goal);
+      
+      // Create updated user data
+      const updatedUserData = {
+        ...userData,
+        name: form.name,
+        email: form.email,
+        age: parseInt(form.age),
+        gender: form.gender,
+        height: heightInCm,
+        weight: parseFloat(form.weight),
+        activityLevel: form.activityLevel,
+        goal: form.goal,
+        dietType: form.dietType,
+        isGlutenFree: form.isGlutenFree,
+        dietaryRestrictions: form.dietaryRestrictions,
+        // Add the calculated metrics
+        bmi,
+        bmr,
+        tdee,
+        calorieNeeds,
+        macros
+      };
+      
+      // Update user data in context
+      const result = await setUserData(updatedUserData);
+      
+      if (result.success) {
+        // Show success message
+        setSuccessMessage('Profile updated successfully!');
+        // Clear any errors
+        setFormErrors({});
+        setErrorMessage('');
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      } else {
+        // Show error message
+        setErrorMessage(result.message || 'Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setErrorMessage('An error occurred while updating your profile');
+    } finally {
+      setIsUpdatingProfile(false);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  // Handle input change
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setForm({
+      ...form,
+      [name]: value
+    });
     
-    // Show success message
-    setSuccessMessage('Profile updated successfully!');
+    // Clear error for this field when user types
+    if (formErrors[name]) {
+      setFormErrors({
+        ...formErrors,
+        [name]: null
+      });
+    }
+  };
+
+  // Handle password change form input
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm({
+      ...passwordForm,
+      [name]: value
+    });
     
-    // Hide success message after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 3000);
+    // Clear errors when typing
+    if (passwordErrors[name]) {
+      setPasswordErrors({
+        ...passwordErrors,
+        [name]: null
+      });
+    }
+  };
+
+  // Validate password form
+  const validatePasswordForm = () => {
+    const errors = {};
+    
+    if (!passwordForm.currentPassword) {
+      errors.currentPassword = 'Current password is required';
+    }
+    
+    if (!passwordForm.newPassword) {
+      errors.newPassword = 'New password is required';
+    } else if (passwordForm.newPassword.length < 8) {
+      errors.newPassword = 'Password must be at least 8 characters';
+    }
+    
+    if (!passwordForm.confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password';
+    } else if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
+    
+    setPasswordErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle password change submission
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validatePasswordForm()) return;
+    
+    setIsChangingPassword(true);
+    setPasswordMessage({ type: '', text: '' });
+    
+    try {
+      const result = await changeUserPassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
+      
+      if (result.success) {
+        setPasswordMessage({
+          type: 'success',
+          text: 'Password changed successfully!'
+        });
+        // Reset password form
+        setPasswordForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+      } else {
+        setPasswordMessage({
+          type: 'error',
+          text: result.message || 'Failed to change password'
+        });
+      }
+    } catch (error) {
+      setPasswordMessage({
+        type: 'error',
+        text: 'An error occurred. Please try again.'
+      });
+      console.error(error);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // Helper function to get food items based on diet type and goal
@@ -252,9 +444,16 @@ const ProfileForm = () => {
       <Typography variant="h5" gutterBottom align="center" sx={{ mb: 3 }}>
         {userData ? 'Update Your Profile' : 'Personal Profile'}
       </Typography>
+      
       {successMessage && (
         <Alert severity="success" sx={{ mb: 3 }}>
           {successMessage}
+        </Alert>
+      )}
+      
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {errorMessage}
         </Alert>
       )}
 
@@ -389,7 +588,9 @@ const ProfileForm = () => {
               label="Name"
               name="name"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={handleInputChange}
+              error={!!formErrors.name}
+              helperText={formErrors.name}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -400,7 +601,9 @@ const ProfileForm = () => {
               name="email"
               type="email"
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={handleInputChange}
+              error={!!formErrors.email}
+              helperText={formErrors.email}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -411,7 +614,9 @@ const ProfileForm = () => {
               name="age"
               type="number"
               value={form.age}
-              onChange={(e) => setForm({ ...form, age: e.target.value })}
+              onChange={handleInputChange}
+              error={!!formErrors.age}
+              helperText={formErrors.age}
               inputProps={{ min: 1, max: 120 }}
             />
           </Grid>
@@ -422,7 +627,7 @@ const ProfileForm = () => {
                 row
                 name="gender"
                 value={form.gender}
-                onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                onChange={handleInputChange}
               >
                 <FormControlLabel value="male" control={<Radio />} label="Male" />
                 <FormControlLabel value="female" control={<Radio />} label="Female" />
@@ -443,7 +648,8 @@ const ProfileForm = () => {
                 <Select
                   value={form.feet}
                   label="Feet"
-                  onChange={(e) => setForm({ ...form, feet: e.target.value })}
+                  name="feet"
+                  onChange={handleInputChange}
                 >
                   {Array.from({ length: 8 }, (_, i) => i + 1).map((feet) => (
                     <MenuItem key={feet} value={feet.toString()}>
@@ -457,7 +663,8 @@ const ProfileForm = () => {
                 <Select
                   value={form.inches}
                   label="Inches"
-                  onChange={(e) => setForm({ ...form, inches: e.target.value })}
+                  name="inches"
+                  onChange={handleInputChange}
                 >
                   {Array.from({ length: 12 }, (_, i) => i).map((inch) => (
                     <MenuItem key={inch} value={inch.toString()}>
@@ -481,7 +688,9 @@ const ProfileForm = () => {
               name="weight"
               type="number"
               value={form.weight}
-              onChange={(e) => setForm({ ...form, weight: e.target.value })}
+              onChange={handleInputChange}
+              error={!!formErrors.weight}
+              helperText={formErrors.weight}
               inputProps={{ min: 20, max: 500 }}
             />
           </Grid>
@@ -498,7 +707,8 @@ const ProfileForm = () => {
               <Select
                 value={form.activityLevel}
                 label="Activity Level"
-                onChange={(e) => setForm({ ...form, activityLevel: e.target.value })}
+                name="activityLevel"
+                onChange={handleInputChange}
               >
                 <MenuItem value="sedentary">Sedentary (office job)</MenuItem>
                 <MenuItem value="light">Light Activity (1-2 days/week)</MenuItem>
@@ -514,7 +724,8 @@ const ProfileForm = () => {
               <Select
                 value={form.goal}
                 label="Goal"
-                onChange={(e) => setForm({ ...form, goal: e.target.value })}
+                name="goal"
+                onChange={handleInputChange}
               >
                 <MenuItem value="lose">Lose Weight</MenuItem>
                 <MenuItem value="maintain">Maintain Weight</MenuItem>
@@ -530,12 +741,13 @@ const ProfileForm = () => {
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <FormControl fullWidth>
+            <FormControl fullWidth error={!!formErrors.dietType}>
               <InputLabel>Diet Type</InputLabel>
               <Select
                 value={form.dietType}
                 label="Diet Type"
-                onChange={(e) => setForm({ ...form, dietType: e.target.value })}
+                name="dietType"
+                onChange={handleInputChange}
               >
                 <MenuItem value="standard">Standard Balanced</MenuItem>
                 <MenuItem value="keto">Ketogenic</MenuItem>
@@ -546,6 +758,11 @@ const ProfileForm = () => {
                 <MenuItem value="vegetarian">Vegetarian</MenuItem>
                 <MenuItem value="vegan">Vegan</MenuItem>
               </Select>
+              {formErrors.dietType && (
+                <Typography variant="caption" color="error">
+                  {formErrors.dietType}
+                </Typography>
+              )}
             </FormControl>
           </Grid>
           <Grid item xs={12}>
@@ -582,11 +799,95 @@ const ProfileForm = () => {
             color="primary"
             size="large"
             sx={{ minWidth: 200 }}
+            disabled={isUpdatingProfile}
           >
-            {userData ? 'Update Profile' : 'Save Profile'}
+            {isUpdatingProfile ? "Updating..." : (userData ? 'Update Profile' : 'Save Profile')}
           </Button>
         </Box>
       </Box>
+
+      {/* Password Change Section - Only for authenticated users */}
+      {isAuthenticated && (
+        <Box sx={{ mt: 4 }}>
+          <Divider sx={{ my: 3 }} />
+          <Accordion>
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              aria-controls="password-change-content"
+              id="password-change-header"
+            >
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                Change Password
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              {passwordMessage.text && (
+                <Alert 
+                  severity={passwordMessage.type} 
+                  sx={{ mb: 2 }}
+                  onClose={() => setPasswordMessage({ type: '', text: '' })}
+                >
+                  {passwordMessage.text}
+                </Alert>
+              )}
+              <Box component="form" onSubmit={handlePasswordSubmit} noValidate>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Current Password"
+                      name="currentPassword"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChange}
+                      error={!!passwordErrors.currentPassword}
+                      helperText={passwordErrors.currentPassword}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="New Password"
+                      name="newPassword"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChange}
+                      error={!!passwordErrors.newPassword}
+                      helperText={passwordErrors.newPassword}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Confirm New Password"
+                      name="confirmPassword"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordChange}
+                      error={!!passwordErrors.confirmPassword}
+                      helperText={passwordErrors.confirmPassword}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      color="primary"
+                      disabled={isChangingPassword}
+                      sx={{ mt: 1 }}
+                    >
+                      {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            </AccordionDetails>
+          </Accordion>
+        </Box>
+      )}
     </Paper>
   );
 };

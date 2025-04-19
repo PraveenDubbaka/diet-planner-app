@@ -14,8 +14,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  CircularProgress
+  CircularProgress,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import DietHistoryList from './DietHistoryList';
 import DietChart from './DietChart';
 import BMICalculator from './BMICalculator';
@@ -23,8 +26,11 @@ import { UserContext } from '../contexts/UserContext';
 
 const UserDashboard = () => {
   const { userData, dietCharts, deleteDietChart } = useContext(UserContext);
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   // State for viewing saved diet chart
   const [selectedChart, setSelectedChart] = useState(null);
@@ -75,21 +81,51 @@ const UserDashboard = () => {
     setViewChartDialogOpen(false);
   };
 
-  const handleDeleteChart = (chartId) => {
-    deleteDietChart(chartId);
+  const handleDeleteChart = (chartId, allChartIds) => {
+    // Bulk delete all saved charts at once
+    if (chartId === "DELETE_ALL" && Array.isArray(allChartIds)) {
+      deleteDietChart("DELETE_ALL", allChartIds);
+    } else {
+      // Single chart deletion
+      deleteDietChart(chartId);
+    }
   };
   
+  const handleGoToProfile = () => {
+    navigate('/profile');
+  };
+  
+  // Mobile-optimized styling for main dashboard paper - no left/right padding
+  const paperSx = isMobile 
+    ? { 
+        p: { xs: 1, sm: 2 }, // Less padding on mobile, more on tablet
+        px: 0,               // Remove left/right padding
+        pt: 1,               // Small top padding
+        pb: 2,               // Small bottom padding
+        borderRadius: { xs: 0, sm: 2 }, // No border radius on mobile 
+        mb: 3,
+        boxShadow: 1,        // Lighter shadow on mobile
+        width: '100%'        // Use full width
+      } 
+    : { 
+        p: 3, 
+        borderRadius: 2, 
+        mb: 3 
+      };
+
   if (isLoading) {
     return (
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
-        <CircularProgress />
+      <Paper elevation={isMobile ? 1 : 3} sx={paperSx}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+          <CircularProgress />
+        </Box>
       </Paper>
     );
   }
   
   if (!userData) {
     return (
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+      <Paper elevation={isMobile ? 1 : 3} sx={paperSx}>
         <Typography variant="h6" align="center">
           Please complete your profile to view your dashboard
         </Typography>
@@ -99,12 +135,12 @@ const UserDashboard = () => {
 
   if (error) {
     return (
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+      <Paper elevation={isMobile ? 1 : 3} sx={paperSx}>
         <Typography variant="h6" align="center" color="error" gutterBottom>
           {error}
         </Typography>
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-          <Button variant="contained" color="primary" href="/profile">
+          <Button variant="contained" color="primary" onClick={handleGoToProfile}>
             Go to Profile
           </Button>
         </Box>
@@ -134,18 +170,19 @@ const UserDashboard = () => {
 
   return (
     <>
-      <Paper elevation={3} sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-        <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+      <Paper elevation={isMobile ? 1 : 3} sx={paperSx}>
+        <Typography variant="h5" gutterBottom sx={{ mb: isMobile ? 2 : 3, px: isMobile ? 2 : 0 }}>
           Your Dashboard
         </Typography>
         
         <Tabs 
           value={currentTab} 
           onChange={handleTabChange} 
-          variant="fullWidth" 
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons={isMobile ? "auto" : false}
           indicatorColor="primary"
           textColor="primary"
-          sx={{ mb: 3 }}
+          sx={{ mb: isMobile ? 2 : 3, px: isMobile ? 1 : 0 }}
         >
           <Tab label="Overview" />
           <Tab label="Diet Generator" />
@@ -154,12 +191,12 @@ const UserDashboard = () => {
         </Tabs>
         
         {currentTab === 0 && (
-          <Box>
-            <Typography variant="h6" gutterBottom>
+          <Box sx={{ px: isMobile ? 1 : 0 }}>
+            <Typography variant="h6" gutterBottom sx={{ px: isMobile ? 1 : 0 }}>
               Profile Overview
             </Typography>
             
-            <Grid container spacing={3}>
+            <Grid container spacing={isMobile ? 2 : 3} sx={{ width: '100%', mx: 0 }}>
               <Grid item xs={12} md={6}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
@@ -355,19 +392,19 @@ const UserDashboard = () => {
         )}
         
         {currentTab === 1 && (
-          <Box>
+          <Box sx={{ px: isMobile ? 0 : 0 }}>
             <DietChart userData={userData} />
           </Box>
         )}
         
         {currentTab === 2 && (
-          <Box>
+          <Box sx={{ px: isMobile ? 0 : 0 }}>
             <DietHistoryList dietCharts={dietCharts || []} onViewChart={handleViewChart} onDeleteChart={handleDeleteChart} />
           </Box>
         )}
         
         {currentTab === 3 && (
-          <Box>
+          <Box sx={{ px: isMobile ? 0 : 0 }}>
             <BMICalculator 
               initialHeight={userData?.height || 170} 
               initialWeight={userData?.weight || 70} 
@@ -382,130 +419,144 @@ const UserDashboard = () => {
         onClose={handleCloseViewDialog}
         fullWidth
         maxWidth="lg"
+        fullScreen={isMobile}
       >
         <DialogTitle>
           Diet Plan - {selectedChart ? new Date(selectedChart.date).toLocaleDateString() : ''}
         </DialogTitle>
         <DialogContent dividers>
-          {selectedChart && (
+          {selectedChart && selectedChart.data && selectedChart.data.mealPlan && (
             <Box>
-              <Typography variant="subtitle1" gutterBottom>
-                Diet Type: {selectedChart.dietType.charAt(0).toUpperCase() + selectedChart.dietType.slice(1).replace(/([A-Z])/g, ' $1')}
-              </Typography>
-              <Typography variant="subtitle1" gutterBottom>
-                Goal: {selectedChart.goal === 'lose' ? 'Lose Fat' : selectedChart.goal === 'maintain' ? 'Maintain Muscle' : 'Gain Muscle'}
-              </Typography>
-              {selectedChart.isGlutenFree && (
-                <Typography variant="subtitle1" gutterBottom>
-                  Gluten-Free: Yes
-                </Typography>
-              )}
-              
-              <Divider sx={{ my: 2 }} />
-              
-              {/* Display saved diet chart */}
-              {selectedChart.data && (
-                <Box sx={{ mt: 2 }}>
-                  {/* Render meal plan */}
-                  {selectedChart.data.mealPlan && Object.keys(selectedChart.data.mealPlan).map((mealKey) => (
-                    <Box key={mealKey} sx={{ mb: 3 }}>
-                      <Typography variant="h6" gutterBottom>
-                        {selectedChart.data.mealDisplayNames && selectedChart.data.mealDisplayNames[mealKey] ? 
-                          selectedChart.data.mealDisplayNames[mealKey] : 
-                          mealKey.charAt(0).toUpperCase() + mealKey.slice(1).replace(/([A-Z])/g, ' $1')}
-                      </Typography>
-                      
-                      {selectedChart.data.mealPlan[mealKey].length > 0 ? (
-                        <Grid container spacing={2}>
-                          {selectedChart.data.mealPlan[mealKey].map((food, index) => (
-                            <Grid item xs={12} sm={6} md={4} key={index}>
-                              <Card variant="outlined">
-                                <CardContent>
-                                  <Typography variant="subtitle1">{food.name}</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {food.quantity}
-                                  </Typography>
-                                  <Divider sx={{ my: 1 }} />
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="body2">Calories: {food.calories}</Typography>
-                                    <Typography variant="body2">P: {food.protein}g</Typography>
-                                    <Typography variant="body2">C: {food.carbs}g</Typography>
-                                    <Typography variant="body2">F: {food.fats}g</Typography>
-                                  </Box>
-                                </CardContent>
-                              </Card>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          No foods in this meal
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
+              {Object.keys(selectedChart.data.mealPlan).map((mealKey) => {
+                const mealName = (() => {
+                  // Try to get display name from mealDisplayNames
+                  if (selectedChart.data.mealDisplayNames && selectedChart.data.mealDisplayNames[mealKey]) {
+                    return selectedChart.data.mealDisplayNames[mealKey];
+                  }
                   
-                  {/* Render total nutrients */}
-                  <Box sx={{ mt: 3 }}>
+                  // Fall back to standard meal names
+                  const standardMealNames = {
+                    breakfast: 'Breakfast',
+                    morningSnack: 'Morning Snack',
+                    lunch: 'Lunch',
+                    afternoonSnack: 'Afternoon Snack',
+                    dinner: 'Dinner',
+                    eveningSnack: 'Evening Snack',
+                    postWorkout: 'Post-Workout'
+                  };
+                  
+                  if (standardMealNames[mealKey]) {
+                    return standardMealNames[mealKey];
+                  }
+                  
+                  // Last resort: format the key itself
+                  return mealKey.charAt(0).toUpperCase() + mealKey.slice(1).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+                })();
+                
+                return (
+                  <Box key={mealKey} sx={{ mb: 3 }}>
                     <Typography variant="h6" gutterBottom>
-                      Total Nutrients
+                      {mealName}
                     </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6} sm={4} md={2.4}>
-                        <Card variant="outlined" sx={{ textAlign: 'center' }}>
-                          <CardContent>
-                            <Typography variant="body2" color="text.secondary">Calories</Typography>
-                            <Typography variant="h6">
-                              {selectedChart.data.totalNutrients?.totalCalories || 0}
-                            </Typography>
-                          </CardContent>
-                        </Card>
+                    
+                    {selectedChart.data.mealPlan[mealKey].length > 0 ? (
+                      <Grid container spacing={2}>
+                        {selectedChart.data.mealPlan[mealKey].map((food, index) => (
+                          <Grid item xs={12} sm={6} md={4} key={index}>
+                            <Card variant="outlined">
+                              <CardContent>
+                                <Typography variant="subtitle1">{food.name}</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {food.quantity || ''}
+                                </Typography>
+                                <Divider sx={{ my: 1 }} />
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2">Cal: {food.calories || 0}</Typography>
+                                  <Typography variant="body2">P: {(food.protein || 0).toFixed(1)}g</Typography>
+                                  <Typography variant="body2">C: {(food.carbs || 0).toFixed(1)}g</Typography>
+                                  <Typography variant="body2">F: {(food.fats || 0).toFixed(1)}g</Typography>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
                       </Grid>
-                      <Grid item xs={6} sm={4} md={2.4}>
-                        <Card variant="outlined" sx={{ textAlign: 'center' }}>
-                          <CardContent>
-                            <Typography variant="body2" color="text.secondary">Protein</Typography>
-                            <Typography variant="h6">
-                              {(selectedChart.data.totalNutrients?.totalProtein || 0).toFixed(1)}g
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2.4}>
-                        <Card variant="outlined" sx={{ textAlign: 'center' }}>
-                          <CardContent>
-                            <Typography variant="body2" color="text.secondary">Carbs</Typography>
-                            <Typography variant="h6">
-                              {(selectedChart.data.totalNutrients?.totalCarbs || 0).toFixed(1)}g
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2.4}>
-                        <Card variant="outlined" sx={{ textAlign: 'center' }}>
-                          <CardContent>
-                            <Typography variant="body2" color="text.secondary">Fats</Typography>
-                            <Typography variant="h6">
-                              {(selectedChart.data.totalNutrients?.totalFats || 0).toFixed(1)}g
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2.4}>
-                        <Card variant="outlined" sx={{ textAlign: 'center' }}>
-                          <CardContent>
-                            <Typography variant="body2" color="text.secondary">Fiber</Typography>
-                            <Typography variant="h6">
-                              {(selectedChart.data.totalNutrients?.totalFiber || 0).toFixed(1)}g
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No foods in this meal
+                      </Typography>
+                    )}
                   </Box>
+                );
+              })}
+              
+              {/* Render total nutrients */}
+              {selectedChart.data.totalNutrients && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Total Nutrients
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6} sm={4} md={2.4}>
+                      <Card variant="outlined" sx={{ textAlign: 'center' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary">Calories</Typography>
+                          <Typography variant="h6">
+                            {selectedChart.data.totalNutrients.totalCalories || 0}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} sm={4} md={2.4}>
+                      <Card variant="outlined" sx={{ textAlign: 'center' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary">Protein</Typography>
+                          <Typography variant="h6">
+                            {(selectedChart.data.totalNutrients.totalProtein || 0).toFixed(1)}g
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} sm={4} md={2.4}>
+                      <Card variant="outlined" sx={{ textAlign: 'center' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary">Carbs</Typography>
+                          <Typography variant="h6">
+                            {(selectedChart.data.totalNutrients.totalCarbs || 0).toFixed(1)}g
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} sm={4} md={2.4}>
+                      <Card variant="outlined" sx={{ textAlign: 'center' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary">Fats</Typography>
+                          <Typography variant="h6">
+                            {(selectedChart.data.totalNutrients.totalFats || 0).toFixed(1)}g
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6} sm={4} md={2.4}>
+                      <Card variant="outlined" sx={{ textAlign: 'center' }}>
+                        <CardContent>
+                          <Typography variant="body2" color="text.secondary">Fiber</Typography>
+                          <Typography variant="h6">
+                            {(selectedChart.data.totalNutrients.totalFiber || 0).toFixed(1)}g
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
                 </Box>
               )}
             </Box>
+          )}
+          
+          {(!selectedChart || !selectedChart.data || !selectedChart.data.mealPlan) && (
+            <Typography variant="body1" color="error" align="center" sx={{ py: 4 }}>
+              Diet plan data not available or in an unexpected format.
+            </Typography>
           )}
         </DialogContent>
         <DialogActions>

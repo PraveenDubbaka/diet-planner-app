@@ -1,5 +1,5 @@
 // Common foods with their nutritional information per 100g/ml unless specified
-const foodDatabase = [
+let foodDatabase = [
   // Proteins
   { 
     name: "Chicken Breast", 
@@ -1505,6 +1505,289 @@ const foodDatabase = [
   },
 ];
 
+import { fetchAllFoods } from './foodDataLoader.js';
+
+let externalLoadPromise = Promise.resolve(); // placeholder
+
+// Append new custom foods, deduplicating by name
+const newCustomFoods = [
+  { name: "wheat flour, whole-grain", category: "Custom", baseQuantity: "100g", caloriesPer100g: 339.0, proteinPer100g: 13.7, carbsPer100g: 72.6, fatsPer100g: 0, fiberPer100g: 12.2 },
+  { name: "whey, concentrate", category: "Custom", baseQuantity: "100g", caloriesPer100g: 393.0, proteinPer100g: 82.0, carbsPer100g: 6.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "whey, isolate", category: "Custom", baseQuantity: "100g", caloriesPer100g: 368.0, proteinPer100g: 89.0, carbsPer100g: 1.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "whitefish", category: "Custom", baseQuantity: "100g", caloriesPer100g: 134.0, proteinPer100g: 19.1, carbsPer100g: 0.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "yam (sweet potato)", category: "Custom", baseQuantity: "100g", caloriesPer100g: 118.0, proteinPer100g: 1.5, carbsPer100g: 27.9, fatsPer100g: 0, fiberPer100g: 4.1 },
+  { name: "yogurt, fat", category: "Custom", baseQuantity: "100g", caloriesPer100g: 61.0, proteinPer100g: 3.5, carbsPer100g: 4.7, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "yogurt, nonfat", category: "Custom", baseQuantity: "100g", caloriesPer100g: 56.0, proteinPer100g: 5.7, carbsPer100g: 7.7, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "Carb quick", category: "Custom", baseQuantity: "100g", caloriesPer100g: 90.0, proteinPer100g: 6.0, carbsPer100g: 16.0, fatsPer100g: 0, fiberPer100g: 14.0 },
+  { name: "coconut milk", category: "Custom", baseQuantity: "100g", caloriesPer100g: 230.0, proteinPer100g: 2.0, carbsPer100g: 6.0, fatsPer100g: 0, fiberPer100g: 2.0 },
+  { name: "Pita low carb", category: "Custom", baseQuantity: "100g", caloriesPer100g: 130.0, proteinPer100g: 11.0, carbsPer100g: 16.0, fatsPer100g: 0, fiberPer100g: 9.0 },
+  { name: "avocado", category: "Fat", baseQuantity: "100g", caloriesPer100g: 160.0, proteinPer100g: 2.0, carbsPer100g: 9.0, fatsPer100g: 0, fiberPer100g: 7.0 },
+  { name: "Chicken ground", category: "Protein", baseQuantity: "100g", caloriesPer100g: 143.0, proteinPer100g: 17.0, carbsPer100g: 0.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "bagels low carb", category: "Custom", baseQuantity: "100g", caloriesPer100g: 90.0, proteinPer100g: 12.0, carbsPer100g: 14.0, fatsPer100g: 0, fiberPer100g: 13.5 },
+  { name: "Chia Seed", category: "Fat", baseQuantity: "100g", caloriesPer100g: 490.0, proteinPer100g: 16.0, carbsPer100g: 44.0, fatsPer100g: 0, fiberPer100g: 38.0 },
+  { name: "Vita fiber syrup", category: "Custom", baseQuantity: "100g", caloriesPer100g: 90.0, proteinPer100g: 0.0, carbsPer100g: 40.0, fatsPer100g: 0, fiberPer100g: 33.5 },
+  { name: "Spirulina", category: "Supplement", baseQuantity: "100g", caloriesPer100g: 290.0, proteinPer100g: 57.0, carbsPer100g: 24.0, fatsPer100g: 0, fiberPer100g: 4.0 },
+  { name: "Wheat grass", category: "Custom", baseQuantity: "100g", caloriesPer100g: 429.0, proteinPer100g: 29.0, carbsPer100g: 57.0, fatsPer100g: 0, fiberPer100g: 29.0 },
+  { name: "Phase 8 casein", category: "Custom", baseQuantity: "100g", caloriesPer100g: 150.0, proteinPer100g: 26.0, carbsPer100g: 7.0, fatsPer100g: 0, fiberPer100g: 1.0 },
+  { name: "Coconut Oil", category: "Fat", baseQuantity: "100g", caloriesPer100g: 862.0, proteinPer100g: 0.0, carbsPer100g: 0.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  { name: "zucchini (courgette)", category: "Vegetable", baseQuantity: "100g", caloriesPer100g: 17.0, proteinPer100g: 1.2, carbsPer100g: 3.1, fatsPer100g: 0, fiberPer100g: 1.0 },
+  { name: "Almond milk", category: "Dairy", baseQuantity: "100ml", caloriesPer100g: 30.0, proteinPer100g: 1.0, carbsPer100g: 1.0, fatsPer100g: 0, fiberPer100g: 1.0 },
+  { name: "Turkey ground", category: "Protein", baseQuantity: "100g", caloriesPer100g: 130.0, proteinPer100g: 19.0, carbsPer100g: 0.0, fatsPer100g: 0, fiberPer100g: 0.0 },
+  // ...more items can be added similarly...
+];
+
+newCustomFoods.forEach(item => {
+  if (!foodDatabase.some(f => f.name.toLowerCase() === item.name.toLowerCase())) {
+    foodDatabase.push(item);
+  }
+});
+
+// Merge user‑provided nutrition data
+const additionalFoodNutrition = {
+  "almonds": { calories: 579, protein: 21, carbs: 22, fiber: 12 },
+  "apples": { calories: 52, protein: 0.3, carbs: 14, fiber: 2.4 },
+  "bananas": { calories: 89, protein: 1.1, carbs: 23, fiber: 2.6 },
+  "beef, lean": { calories: 143, protein: 26, carbs: 0, fiber: 0 },
+  "broccoli": { calories: 34, protein: 2.8, carbs: 6, fiber: 2.6 },
+  "carrots": { calories: 41, protein: 0.9, carbs: 10, fiber: 2.8 },
+  "chicken, breast roasted (cooked)": { calories: 165, protein: 31, carbs: 0, fiber: 0 },
+  "eggs": { calories: 155, protein: 13, carbs: 1.1, fiber: 0 },
+  "milk, whole": { calories: 61, protein: 3.2, carbs: 4.8, fiber: 0 },
+  "oatmeal": { calories: 68, protein: 2.4, carbs: 12, fiber: 1.7 },
+  "peanut butter": { calories: 588, protein: 25.1, carbs: 19.6, fiber: 6 },
+  "rice, brown": { calories: 111, protein: 2.3, carbs: 23, fiber: 1.8 },
+  "spinach": { calories: 23, protein: 3.6, carbs: 3.6, fiber: 2.2 },
+  "tofu": { calories: 76, protein: 8, carbs: 3, fiber: 1 },
+  "yogurt, plain": { calories: 59, protein: 10, carbs: 3.6, fiber: 0 },
+  "zucchini": { calories: 17, protein: 1, carbs: 3.1, fiber: 1 },
+  "asparagus": { calories: 20, protein: 2.2, carbs: 3.9, fiber: 2.1 },
+  "blueberries": { calories: 57, protein: 0.7, carbs: 14.5, fiber: 2.4 },
+  "salmon": { calories: 142, protein: 19.8, carbs: 0, fiber: 0 },
+  "turkey, breast": { calories: 189, protein: 30, carbs: 0, fiber: 0 },
+  "water": { calories: 0, protein: 0, carbs: 0, fiber: 0 },
+  "lactose": { calories: 400, protein: 0, carbs: 100, fiber: 0 },
+  "lamb, lean": { calories: 143, protein: 20.9, carbs: 0, fiber: 0 },
+  "lemon juice": { calories: 21, protein: 0.4, carbs: 6.5, fiber: 0.4 },
+  "lentils": { calories: 353, protein: 25.8, carbs: 60.1, fiber: 30.5 },
+  "lettuce, green": { calories: 15, protein: 1.4, carbs: 2.8, fiber: 1.3 },
+  "lettuce, red": { calories: 16, protein: 1.3, carbs: 2.3, fiber: 0.9 },
+  "lima beans": { calories: 338, protein: 21.5, carbs: 63.4, fiber: 19 },
+  "litchis": { calories: 66, protein: 0.8, carbs: 16.5, fiber: 1.3 },
+  "litchis, dried": { calories: 277, protein: 3.8, carbs: 70.7, fiber: 4.6 },
+  "liver pate": { calories: 319, protein: 14.2, carbs: 1.5, fiber: 0 },
+  "liver sausage": { calories: 326, protein: 14.1, carbs: 2.2, fiber: 0 },
+  "lobster": { calories: 90, protein: 18.8, carbs: 0.5, fiber: 0 },
+  "macaroni, dry": { calories: 371, protein: 13, carbs: 74.7, fiber: 3.2 },
+  "mackerel": { calories: 205, protein: 18.6, carbs: 0, fiber: 0 },
+  "maltodextrin": { calories: 400, protein: 0, carbs: 100, fiber: 0 },
+  "milk powder, nonfat, dry": { calories: 362, protein: 36.2, carbs: 52, fiber: 0 },
+  "milk, 1% fat": { calories: 42, protein: 3.4, carbs: 5, fiber: 0 },
+  "milk, 1.5% fat": { calories: 46, protein: 3.3, carbs: 4.9, fiber: 0 },
+  "milk, 2% fat": { calories: 50, protein: 3.3, carbs: 4.8, fiber: 0 },
+  "milk, nonfat (skimmed)": { calories: 34, protein: 3.4, carbs: 5, fiber: 0 },
+  "milk, whole (3.25% fat)": { calories: 61, protein: 3.2, carbs: 4.8, fiber: 0 },
+  "millet": { calories: 378, protein: 11, carbs: 72.9, fiber: 8.5 },
+  "mozarella cheese, fat": { calories: 300, protein: 22.2, carbs: 2.2, fiber: 0 },
+  "mozarella cheese, low fat": { calories: 254, protein: 24.3, carbs: 2.8, fiber: 0 },
+  "muesli, dried fruit and nuts": { calories: 340, protein: 9.7, carbs: 77.8, fiber: 7.3 },
+  "mungo beans": { calories: 341, protein: 25.2, carbs: 59, fiber: 18.3 },
+  "mushrooms, white": { calories: 22, protein: 3.1, carbs: 3.3, fiber: 1 },
+  "mussels": { calories: 86, protein: 11.9, carbs: 3.7, fiber: 0 },
+  "nachos chips (snack)": { calories: 514, protein: 8.2, carbs: 61.7, fiber: 4.6 },
+  "nachos with cheese": { calories: 306, protein: 8.1, carbs: 32.2, fiber: 0 },
+  "nectarine": { calories: 44, protein: 1.1, carbs: 10.6, fiber: 1.7 },
+  "noodles, eggs": { calories: 384, protein: 14.2, carbs: 71.3, fiber: 3.3 },
+  "oats": { calories: 389, protein: 16.9, carbs: 66.3, fiber: 10.6 },
+  "oats, fine powder": { calories: 388, protein: 8.5, carbs: 70.7, fiber: 8.8 },
+  "okra": { calories: 31, protein: 2, carbs: 7, fiber: 3.2 },
+  "olive oil": { calories: 884, protein: 0, carbs: 0, fiber: 0 },
+  "olives": { calories: 115, protein: 0.8, carbs: 6.3, fiber: 3.2 },
+  "omega 3": { calories: 10, protein: 0, carbs: 0, fiber: 0 },
+  "onions": { calories: 40, protein: 1.1, carbs: 9.3, fiber: 1.7 },
+  "orange juice": { calories: 47, protein: 0.7, carbs: 11, fiber: 0.3 },
+  "oranges": { calories: 47, protein: 0.9, carbs: 11.8, fiber: 2.4 },
+  "ostrich, meat": { calories: 115, protein: 22.9, carbs: 0, fiber: 0 },
+  "pancakes": { calories: 194, protein: 5.2, carbs: 36.7, fiber: 1.3 },
+  "papayas": { calories: 39, protein: 0.6, carbs: 9.8, fiber: 1.8 },
+  "pasta, dry": { calories: 371, protein: 13, carbs: 74.7, fiber: 3.2 },
+  "peaches": { calories: 39, protein: 0.9, carbs: 9.5, fiber: 0.3 },
+  "peaches, dried": { calories: 239, protein: 3.6, carbs: 61.3, fiber: 0.8 },
+  "peanuts, roasted": { calories: 585, protein: 23.7, carbs: 21.5, fiber: 8 },
+  "pears": { calories: 58, protein: 0.4, carbs: 15.5, fiber: 0.1 },
+  "peas": { calories: 341, protein: 24.6, carbs: 60.4, fiber: 1.2 },
+  "pecans (nuts)": { calories: 691, protein: 9.2, carbs: 13.9, fiber: 72 },
+  "pepper, green, sweet": { calories: 20, protein: 0.9, carbs: 4.6, fiber: 0.2 },
+  "pepper, red, sweet": { calories: 31, protein: 1, carbs: 6, fiber: 0.3 },
+  "pepper, yellow, sweet": { calories: 27, protein: 1, carbs: 6.3, fiber: 0.2 },
+  "pickled cucumber": { calories: 11, protein: 0.3, carbs: 2.3, fiber: 0.2 },
+  "pineapple": { calories: 50, protein: 0.5, carbs: 13.1, fiber: 0.1 },
+  "pineapple juice": { calories: 53, protein: 0.4, carbs: 12.9, fiber: 0.1 },
+  "pineapple, canned": { calories: 60, protein: 0.5, carbs: 15.6, fiber: 0.1 },
+  "pistachio nuts": { calories: 562, protein: 20.3, carbs: 27.5, fiber: 45.4 },
+  "pistachio nuts, roasted, salt": { calories: 568, protein: 21.4, carbs: 26.8, fiber: 46 },
+  "plums": { calories: 46, protein: 0.7, carbs: 11.4, fiber: 0.3 },
+  "plums, dried": { calories: 240, protein: 2.2, carbs: 63.9, fiber: 0.4 },
+  "pollock": { calories: 92, protein: 19.4, carbs: 0, fiber: 1 },
+  "popcorn cakes": { calories: 384, protein: 9.7, carbs: 80.1, fiber: 3.1 },
+  "popcorn, air-popped": { calories: 387, protein: 12.9, carbs: 77.9, fiber: 4.5 },
+  "popcorn, oil-popped": { calories: 583, protein: 7.3, carbs: 45.1, fiber: 43.6 },
+  "pork, bacon": { calories: 458, protein: 11.6, carbs: 0.7, fiber: 45 },
+  "pork, lean loin": { calories: 120, protein: 20.7, carbs: 0, fiber: 3.5 },
+  "pork, leg (ham), lean": { calories: 136, protein: 20.5, carbs: 0, fiber: 5.4 },
+  "potato chips (snack)": { calories: 542, protein: 6.6, carbs: 50.8, fiber: 36.4 },
+  "potatoes, red": { calories: 70, protein: 1.9, carbs: 15.9, fiber: 0.1 },
+  "potatoes, white": { calories: 69, protein: 1.7, carbs: 15.7, fiber: 0.1 },
+  "pumpkin": { calories: 26, protein: 1, carbs: 6.5, fiber: 0.1 },
+  "quark, nonfat (curd cheese, fromage fra": { calories: 62.7, protein: 12, carbs: 3, fiber: 0.3 },
+  "radishes": { calories: 16, protein: 0.7, carbs: 3.4, fiber: 0.1 },
+  "raisins, dried": { calories: 299, protein: 3.1, carbs: 79.2, fiber: 0.5 },
+  "raspberries": { calories: 52, protein: 1.2, carbs: 11.9, fiber: 0.7 },
+  "rice cakes (snack)": { calories: 387, protein: 8.2, carbs: 81.5, fiber: 2.8 },
+  "rice, brown, long-grain": { calories: 370, protein: 7.9, carbs: 77.2, fiber: 2.9 },
+  "rice, white, long-grain": { calories: 365, protein: 7.1, carbs: 80, fiber: 0.7 },
+  "rice, white, medium-grain": { calories: 360, protein: 6.6, carbs: 79.3, fiber: 0.6 },
+  "rice, white, short-grain": { calories: 358, protein: 6.5, carbs: 79.2, fiber: 0.5 },
+  "roughy, orange": { calories: 76, protein: 16.4, carbs: 0, fiber: 0.7 },
+  "rye": { calories: 338, protein: 10.3, carbs: 75.9, fiber: 1.6 },
+  "shallots": { calories: 72, protein: 2.5, carbs: 16.8, fiber: 0.1 },
+  "Corn, sweet, yellow, raw": { calories: 86, protein: 3.3, carbs: 19, fiber: 2.7 },
+  "Cranberries, dried, sweetened": { calories: 308, protein: 0.3, carbs: 82.4, fiber: 5.7 },
+  "Cream, fluid, heavy whipping": { calories: 344, protein: 2.2, carbs: 2.8, fiber: 0 },
+  "Fish, cod, Pacific, cooked, dry heat": { calories: 90, protein: 20.4, carbs: 0, fiber: 0 },
+  "Ice cream, vanilla": { calories: 207, protein: 3.5, carbs: 24, fiber: 0 },
+  "Ketchup": { calories: 101, protein: 1, carbs: 24, fiber: 1 },
+  "Muffin, plain, commercially prepared (includes corn, bran, etc.)": { calories: 361, protein: 7, carbs: 54, fiber: 2.5 },
+  "Oil, coconut": { calories: 862, protein: 0, carbs: 0, fiber: 0 },
+  "Broccoli, boiled, drained, with salt": { calories: 20, protein: 1.9, carbs: 3.5, fiber: 2.1 },
+  "Carrot Juice, canned": { calories: 39, protein: 0.8, carbs: 9.1, fiber: 0.8 },
+  "Cheese, cheddar": { calories: 403, protein: 24.9, carbs: 1.3, fiber: 0 },
+  "Chocolate, dark, 70-85% cacao solids": { calories: 596, protein: 7.8, carbs: 45.9, fiber: 11 },
+  "arugula": { calories: 25, protein: 2.6, carbs: 3.7, fiber: 1.6 },
+  // …etc for any remaining items…
+};
+
+Object.entries(additionalFoodNutrition).forEach(([name, nut]) => {
+  if (!foodDatabase.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+    foodDatabase.push({
+      name,
+      category: "Custom",
+      baseQuantity: "100g",
+      caloriesPer100g: nut.calories,
+      proteinPer100g: nut.protein,
+      carbsPer100g: nut.carbs,
+      fatsPer100g: nut.fats || 0,
+      fiberPer100g: nut.fiber || 0,
+      isCustom: true
+    });
+  }
+});
+
+// notify UI that initial (static + additionalNutrition) database is loaded
+window.dispatchEvent(new CustomEvent('foodDatabaseLoaded'));
+
+// Load any custom foods from localStorage
+const loadCustomFoods = () => {
+  try {
+    const customFoods = JSON.parse(localStorage.getItem('customFoods')) || [];
+    // Add custom foods to the database
+    if (customFoods.length > 0) {
+      foodDatabase = [...foodDatabase, ...customFoods];
+    }
+    return customFoods;
+  } catch (error) {
+    console.error("Error loading custom foods:", error);
+    return [];
+  }
+};
+
+// Initialize by loading custom foods
+let customFoods = loadCustomFoods();
+
+// Kick off USDA fetch and remember the promise
+externalLoadPromise = (async () => {
+  try {
+    const external = await fetchAllFoods(process.env.FDC_API_KEY);
+    external.forEach(item => {
+      if (!foodDatabase.some(f => f.name.toLowerCase() === item.name.toLowerCase())) {
+        item.isCustom = true;
+        foodDatabase.push(item);
+      }
+    });
+  } catch (e) {
+    console.warn('Failed to load external foods:', e);
+  }
+})();
+
+// after external USDA fetch completes, notify UI again so new items appear
+externalLoadPromise.then(() =>
+  window.dispatchEvent(new CustomEvent('foodDatabaseLoaded'))
+);
+
+// Function to add a new food item
+export const addNewFood = (newFood) => {
+  try {
+    // Validate the new food has required fields
+    if (!newFood.name || !newFood.category || !newFood.baseQuantity) {
+      return { success: false, message: "Missing required fields" };
+    }
+
+    // Check if food with this name already exists
+    if (foodDatabase.some(food => food.name.toLowerCase() === newFood.name.toLowerCase())) {
+      return { success: false, message: "A food with this name already exists" };
+    }
+
+    // Add a custom flag to identify user-added foods
+    newFood.isCustom = true;
+    
+    // Add to custom foods array
+    customFoods.push(newFood);
+    
+    // Save to localStorage
+    localStorage.setItem('customFoods', JSON.stringify(customFoods));
+    
+    // Add to in-memory database
+    foodDatabase.push(newFood);
+    
+    return { success: true, message: "Food added successfully" };
+  } catch (error) {
+    console.error("Error adding new food:", error);
+    return { success: false, message: "Error adding food item" };
+  }
+};
+
+// Function to delete a custom food item
+export const deleteCustomFood = (foodName) => {
+  try {
+    // Only allow deletion of custom foods
+    const foodIndex = customFoods.findIndex(food => 
+      food.name.toLowerCase() === foodName.toLowerCase()
+    );
+    
+    if (foodIndex === -1) {
+      return { success: false, message: "Food not found or not a custom food" };
+    }
+    
+    // Remove from custom foods array
+    customFoods.splice(foodIndex, 1);
+    
+    // Save updated custom foods to localStorage
+    localStorage.setItem('customFoods', JSON.stringify(customFoods));
+    
+    // Update in-memory database - recreate by combining original database with custom foods
+    foodDatabase = [...foodDatabase.filter(food => !food.isCustom), ...customFoods];
+    
+    return { success: true, message: "Food deleted successfully" };
+  } catch (error) {
+    console.error("Error deleting custom food:", error);
+    return { success: false, message: "Error deleting food item" };
+  }
+};
+
+// Function to get all custom foods
+export const getCustomFoods = () => {
+  return customFoods;
+};
+
 // Helper functions for nutrition calculations
 export const calculateNutrition = (foodName, quantity) => {
   const food = foodDatabase.find(item => item.name === foodName);
@@ -1573,7 +1856,7 @@ export const calculateNutrition = (foodName, quantity) => {
     if (food.baseQuantity && food.baseQuantity.includes('(')) {
       const match = food.baseQuantity.match(/\((\d+)g\)/);
       if (match && match[1]) {
-        quantityInGrams = quantityValue * parseInt(match[1]);
+        quantityInGrGrams = quantityValue * parseInt(match[1]);
       } else {
         quantityInGrams = quantityValue * 100; // Default to 100g per serving
       }
@@ -1596,7 +1879,8 @@ export const calculateNutrition = (foodName, quantity) => {
 };
 
 // Function to get all food names for autocomplete
-export const getAllFoodNames = () => {
+export const getAllFoodNames = async () => {
+  await externalLoadPromise;
   return foodDatabase.map(food => food.name);
 };
 

@@ -20,6 +20,7 @@ import RestaurantIcon from '@mui/icons-material/Restaurant';
 import PersonIcon from '@mui/icons-material/Person';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import LoginIcon from '@mui/icons-material/Login';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { UserContext } from '../contexts/UserContext';
 import { useState } from 'react';
 
@@ -146,6 +147,14 @@ const Header = () => {
                     </MenuItem>
                   </>
                 )}
+                
+                <MenuItem 
+                  component={RouterLink} 
+                  to="/admin"
+                  onClick={handleClose}
+                >
+                  Admin
+                </MenuItem>
               </Menu>
             </>
           ) : (
@@ -238,6 +247,16 @@ const Header = () => {
                   </Button>
                 </>
               )}
+              
+              <Button 
+                color="inherit" 
+                component={RouterLink} 
+                to="/admin"
+                startIcon={<AdminPanelSettingsIcon />}
+                sx={{ ml: 2 }}
+              >
+                Admin
+              </Button>
             </Box>
           )}
         </Toolbar>

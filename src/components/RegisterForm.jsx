@@ -10,7 +10,8 @@ import {
   Divider,
   Alert,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  CircularProgress
 } from '@mui/material';
 import { UserContext } from '../contexts/UserContext';
 
@@ -29,6 +30,7 @@ const RegisterForm = ({ onToggleForm }) => {
   const [errors, setErrors] = useState({});
   const [registrationError, setRegistrationError] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   
   const handleChange = (e) => {
     const { name, value, checked } = e.target;
@@ -89,15 +91,23 @@ const RegisterForm = ({ onToggleForm }) => {
     
     if (!validateForm()) return;
     
-    const result = register(form.name, form.email, form.password);
-    
-    if (result.success) {
-      setRegistrationSuccess(true);
-      setTimeout(() => {
-        navigate('/profile');
-      }, 2000);
-    } else {
-      setRegistrationError(result.message || 'Registration failed. Please try again.');
+    try {
+      setIsRegistering(true);
+      const result = await register(form.name, form.email, form.password);
+      
+      if (result.success) {
+        setRegistrationSuccess(true);
+        setTimeout(() => {
+          navigate('/profile');
+        }, 2000);
+      } else {
+        setRegistrationError(result.message || 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setRegistrationError('Registration failed. Please try again.');
+    } finally {
+      setIsRegistering(false);
     }
   };
   
@@ -132,7 +142,7 @@ const RegisterForm = ({ onToggleForm }) => {
               helperText={errors.name}
               required
               autoFocus
-              disabled={registrationSuccess}
+              disabled={registrationSuccess || isRegistering}
             />
           </Grid>
           
@@ -147,7 +157,7 @@ const RegisterForm = ({ onToggleForm }) => {
               error={!!errors.email}
               helperText={errors.email}
               required
-              disabled={registrationSuccess}
+              disabled={registrationSuccess || isRegistering}
             />
           </Grid>
           
@@ -162,7 +172,7 @@ const RegisterForm = ({ onToggleForm }) => {
               error={!!errors.password}
               helperText={errors.password}
               required
-              disabled={registrationSuccess}
+              disabled={registrationSuccess || isRegistering}
             />
           </Grid>
           
@@ -177,7 +187,7 @@ const RegisterForm = ({ onToggleForm }) => {
               error={!!errors.confirmPassword}
               helperText={errors.confirmPassword}
               required
-              disabled={registrationSuccess}
+              disabled={registrationSuccess || isRegistering}
             />
           </Grid>
           
@@ -189,7 +199,7 @@ const RegisterForm = ({ onToggleForm }) => {
                   checked={form.acceptTerms}
                   onChange={handleChange}
                   color="primary"
-                  disabled={registrationSuccess}
+                  disabled={registrationSuccess || isRegistering}
                 />
               }
               label="I agree to the terms and conditions"
@@ -208,9 +218,10 @@ const RegisterForm = ({ onToggleForm }) => {
               variant="contained"
               size="large"
               sx={{ mt: 2 }}
-              disabled={registrationSuccess}
+              disabled={registrationSuccess || isRegistering}
+              startIcon={isRegistering ? <CircularProgress size={20} color="inherit" /> : null}
             >
-              Register
+              {isRegistering ? 'Registering...' : 'Register'}
             </Button>
           </Grid>
         </Grid>
@@ -226,7 +237,7 @@ const RegisterForm = ({ onToggleForm }) => {
           variant="outlined" 
           onClick={onToggleForm}
           sx={{ mt: 1 }}
-          disabled={registrationSuccess}
+          disabled={registrationSuccess || isRegistering}
         >
           Sign In
         </Button>

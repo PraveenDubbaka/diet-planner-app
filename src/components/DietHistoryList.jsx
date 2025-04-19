@@ -22,7 +22,8 @@ import {
   Visibility as VisibilityIcon,
   CalendarToday as CalendarIcon,
   Spa as SpaIcon,
-  FitnessCenter as FitnessCenterIcon
+  FitnessCenter as FitnessCenterIcon,
+  DeleteSweep as DeleteSweepIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,6 +33,7 @@ const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [chartToDelete, setChartToDelete] = useState(null);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
 
   const handlePrintChart = (chart) => {
     setSelectedChart(chart);
@@ -303,6 +305,25 @@ const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
   const handleCloseDeleteDialog = () => {
     setDeleteDialogOpen(false);
   };
+
+  const handleDeleteAllClick = () => {
+    setDeleteAllDialogOpen(true);
+  };
+  
+  const handleDeleteAllConfirm = () => {
+    if (onDeleteChart && dietCharts.length > 0) {
+      // Create a copy of all chart IDs to avoid issues with changing state during deletion
+      const chartIds = dietCharts.map(chart => chart.id);
+      
+      // Use a special identifier to indicate this is a bulk delete operation
+      onDeleteChart("DELETE_ALL", chartIds);
+    }
+    setDeleteAllDialogOpen(false);
+  };
+  
+  const handleCloseDeleteAllDialog = () => {
+    setDeleteAllDialogOpen(false);
+  };
   
   const getMealDisplayName = (mealKey, chart) => {
     // First check if this meal has a custom display name in the chart data
@@ -357,6 +378,18 @@ const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
         Your Saved Diet Plans
       </Typography>
       
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<DeleteSweepIcon />}
+          onClick={handleDeleteAllClick}
+          sx={{ borderRadius: 2 }}
+        >
+          Delete All Diet Plans
+        </Button>
+      </Box>
+      
       <Grid container spacing={3}>
         {dietCharts.map((chart, index) => (
           <Grid item xs={12} md={6} key={chart.id || index}>
@@ -389,14 +422,14 @@ const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                   <Chip 
                     icon={<SpaIcon />} 
-                    label={chart.dietType.charAt(0).toUpperCase() + chart.dietType.slice(1).replace(/([A-Z])/g, ' $1')} 
+                    label={(chart.dietType || 'Standard').charAt(0).toUpperCase() + (chart.dietType || 'standard').slice(1).replace(/([A-Z])/g, ' $1')} 
                     color="primary" 
                     variant="outlined" 
                     size="small"
                   />
                   <Chip 
                     icon={<FitnessCenterIcon />} 
-                    label={chart.goal === 'lose' ? 'Lose Fat' : chart.goal === 'maintain' ? 'Maintain Weight' : 'Gain Muscle'} 
+                    label={(chart.goal || 'maintain') === 'lose' ? 'Lose Fat' : (chart.goal || 'maintain') === 'maintain' ? 'Maintain Weight' : 'Gain Muscle'} 
                     color="secondary" 
                     variant="outlined" 
                     size="small"
@@ -805,6 +838,31 @@ const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
             startIcon={<DeleteIcon />}
           >
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      <Dialog open={deleteAllDialogOpen} onClose={handleCloseDeleteAllDialog}>
+        <DialogTitle>Delete All Diet Plans</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Are you sure you want to delete all saved diet plans?
+          </Typography>
+          <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteAllDialog} color="primary">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteAllConfirm} 
+            color="error" 
+            variant="contained" 
+            startIcon={<DeleteSweepIcon />}
+          >
+            Delete All
           </Button>
         </DialogActions>
       </Dialog>
