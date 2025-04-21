@@ -7,14 +7,19 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updateProfile,
-  sendEmailVerification
+  sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence
 } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 
 // User Registration
 export const registerUser = async (name, email, password) => {
   try {
+    // Ensure the session persists across refreshes
+    await setPersistence(auth, browserLocalPersistence);
+    
     // Create user in Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -75,6 +80,9 @@ export const registerUser = async (name, email, password) => {
 // User Login with performance optimization
 export const loginUser = async (email, password) => {
   try {
+    // Ensure the session persists across refreshes
+    await setPersistence(auth, browserLocalPersistence);
+    
     // Start authentication - with a timeout to prevent hanging
     const authPromise = signInWithEmailAndPassword(auth, email, password);
     
@@ -353,37 +361,55 @@ export const getCurrentUser = () => {
 };
 
 // Save Diet Chart to Firestore
-export const saveDietChart = async (userId, dietChartData) => {
+export const saveDietChart = async (dietChartData) => {
   try {
-    // Remove undefined/null fields from dietChartData
-    const cleanedData = Object.fromEntries(
-      Object.entries(dietChartData).filter(([_, v]) => v !== undefined && v !== null)
-    );
-
-    const newDietChart = {
-      id: Date.now().toString(),
-      userId,
-      date: new Date().toISOString(),
-      ...cleanedData
+    console.log("saveDietChart called with data:", dietChartData);
+    
+    // Ensure required fields like userId are present
+    if (!dietChartData || !dietChartData.userId) {
+      console.error("Missing required userId in diet chart data");
+      throw new Error("User ID is required to save diet chart.");
+    }
+    
+    // Generate a new ID or use one if provided (e.g., from local state before sync)
+    const chartId = dietChartData.id || Date.now().toString();
+    console.log("Using chart ID:", chartId);
+    
+    const chartRef = doc(db, "dietCharts", chartId);
+    
+    // Ensure we have all the required fields in the correct format
+    const dataToSave = {
+      id: chartId, // Ensure the ID is part of the document data
+      userId: dietChartData.userId,
+      date: dietChartData.dateCreated || new Date().toISOString(),
+      createdAt: dietChartData.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      data: {
+        mealPlan: dietChartData.mealPlan || {},
+        mealDisplayNames: dietChartData.mealDisplayNames || {},
+        totalNutrients: dietChartData.totalNutrients || {},
+        mealOrder: dietChartData.mealOrder || []
+      },
+      // Add any diet preferences to the top level
+      dietType: dietChartData.dietType || 'standard',
+      goal: dietChartData.goal || 'maintain',
+      isGlutenFree: dietChartData.isGlutenFree || false
     };
-
-    // Log the data being sent to Firestore
-    console.log('Attempting to save diet chart:', newDietChart);
-
-    await setDoc(doc(db, "dietCharts", newDietChart.id), newDietChart);
-
+    
+    console.log("Saving diet chart with formatted data:", dataToSave);
+    await setDoc(chartRef, dataToSave, { merge: true }); // Use setDoc with merge to handle create/update
+    console.log("Diet chart saved successfully with ID:", chartId);
+    
     return { 
       success: true, 
-      chartId: newDietChart.id
+      chartId: chartId
     };
   } catch (error) {
-    // Log full error details
-    console.error("Firebase Save Diet Chart Error:", error.code, error.message, error);
+    console.error("Firebase Save Diet Chart Error:", error);
     return {
       success: false,
-      message: `Failed to save diet chart. ${error.message || ''}`,
-      errorCode: error.code,
-      errorDetails: error
+      message: `Failed to save diet chart: ${error.message}`,
+      errorCode: error.code
     };
   }
 };
@@ -391,18 +417,86 @@ export const saveDietChart = async (userId, dietChartData) => {
 // Delete Diet Chart from Firestore
 export const deleteDietChart = async (chartId) => {
   try {
+    if (!chartId) {
+        throw new Error("Chart ID is required to delete.");
+    }
     await deleteDoc(doc(db, "dietCharts", chartId));
-    
-    return { 
-      success: true
-    };
+    return { success: true };
   } catch (error) {
-    console.error("Firebase Delete Diet Chart Error:", error.code, error.message);
-    
+    console.error("Firebase Delete Diet Chart Error:", error);
     return {
       success: false,
-      message: "Failed to delete diet chart. Please try again.",
+      message: "Failed to delete diet chart.",
       errorCode: error.code
     };
+  }
+};
+
+// Fetch diet charts for the authenticated user
+export const loadDietChartsFromFirebase = async (userId) => {
+  if (!userId) {
+    console.warn("loadDietChartsFromFirebase called without userId");
+    return []; // Return empty array if no userId
+  }
+  
+  try {
+    console.log(`Attempting to load diet charts for user: ${userId}`);
+    const chartsRef = collection(db, "dietCharts");
+    
+    // Create a simpler query without orderBy
+    const q = query(chartsRef, where("userId", "==", userId));
+    console.log("Executing Firestore query");
+    
+    const querySnapshot = await getDocs(q);
+    
+    // Check if empty
+    if (querySnapshot.empty) {
+      console.log(`No diet charts found for user ${userId}`);
+      return [];
+    }
+    
+    const charts = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      
+      // Handle serverTimestamp objects properly
+      let processedData = {
+        ...data,
+        // Convert Firebase timestamp to standard date if it exists
+        createdAt: data.createdAt instanceof Object && typeof data.createdAt.toDate === 'function' 
+          ? data.createdAt.toDate().toISOString() 
+          : data.createdAt || data.date || new Date().toISOString(),
+        // Make sure the document ID is included
+        id: doc.id
+      };
+      
+      console.log(`Found chart with ID: ${doc.id}, date: ${processedData.date || processedData.createdAt}`);
+      charts.push(processedData);
+    });
+    
+    // Sort the charts by date (newest first) in JavaScript
+    charts.sort((a, b) => {
+      // Try to get a valid date for comparison
+      const getValidDate = (item) => {
+        if (item.createdAt) {
+          return new Date(item.createdAt);
+        } else if (item.date) {
+          return new Date(item.date);
+        }
+        return new Date(0); // Fallback to epoch start
+      };
+      
+      const dateA = getValidDate(a);
+      const dateB = getValidDate(b);
+      
+      return dateB - dateA; // Sort newest first
+    });
+    
+    console.log(`Successfully loaded ${charts.length} diet charts for user ${userId}`);
+    return charts;
+  } catch (error) {
+    console.error("Error loading diet charts:", error);
+    // Return empty array on error
+    return []; 
   }
 };

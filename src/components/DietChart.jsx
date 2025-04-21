@@ -688,8 +688,8 @@ const DietChart = ({ userData }) => {
 
   // Load from localStorage on mount (and only set defaults if nothing is found)
   useEffect(() => {
-    if (userData && userData.id) {
-      const saved = localStorage.getItem(getDietChartStorageKey(userData.id));
+    if (userData && userData.uid) {
+      const saved = localStorage.getItem(getDietChartStorageKey(userData.uid));
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -727,17 +727,17 @@ const DietChart = ({ userData }) => {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userData && userData.id]);
+  }, [userData && userData.uid]);
 
   // Save to localStorage whenever meal plan/order changes
   useEffect(() => {
-    if (userData && userData.id && userMealPlan && mealOrder) {
+    if (userData && userData.uid && userMealPlan && mealOrder) {
       localStorage.setItem(
-        getDietChartStorageKey(userData.id),
+        getDietChartStorageKey(userData.uid),
         JSON.stringify({ userMealPlan, mealOrder })
       );
     }
-  }, [userData && userData.id, userMealPlan, mealOrder]);
+  }, [userData && userData.uid, userMealPlan, mealOrder]);
 
   // Load food options for autocomplete and update when USDA foods are loaded
   useEffect(() => {
@@ -799,26 +799,37 @@ const DietChart = ({ userData }) => {
   
   // Handle saving diet chart
   const handleSaveDietChart = async () => {
+    console.log("Starting save process with userData:", userData);
     // Disable save button immediately to prevent duplicates
     setHasUnsavedChanges(false);
     if (!isAuthenticated) {
+      console.error("User not authenticated, cannot save");
       alert('Please log in to save your diet plan');
       return;
     }
 
     const dietChartData = {
+      userId: userData.uid, // Explicitly include userId at top level
       mealPlan: userMealPlan,
       mealOrder: mealOrder,
       mealDisplayNames: mealDisplayNames,
       totalNutrients: calculateTotalNutrients(),
+      // Add user preferences to be saved with the diet chart
+      dietType: userData?.dietType || 'standard',
+      goal: userData?.goal || 'maintain',
+      isGlutenFree: userData?.isGlutenFree || false,
       dateCreated: new Date().toISOString()
     };
+
+    console.log("Diet chart data prepared for saving:", dietChartData);
 
     try {
       // Show the success message immediately while the save is in progress
       setSaveSuccessVisible(true);
       
+      console.log("Calling saveDietChart service function");
       const saveResult = await saveDietChart(dietChartData);
+      console.log("Save result received:", saveResult);
       
       if (saveResult && saveResult.success) {
         // Create a new Date object explicitly
@@ -840,6 +851,7 @@ const DietChart = ({ userData }) => {
 
         // Already disabled; remain disabled until edits
       } else {
+        console.error("Save failed with result:", saveResult);
         // Hide success message on error
         setSaveSuccessVisible(false);
         setLastSavedTime(null);

@@ -1,11 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Container, Typography, Box, Paper, Tabs, Tab } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../contexts/UserContext';
 import LoginForm from '../components/LoginForm';
 import RegisterForm from '../components/RegisterForm';
 
 const Auth = () => {
   const [currentTab, setCurrentTab] = useState(0);
-  
+  const { isAuthenticated, isAuthLoading } = useContext(UserContext);
+  const navigate = useNavigate();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, isAuthLoading, navigate]);
+
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };

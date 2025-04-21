@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -28,6 +28,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 const DietHistoryList = ({ dietCharts, onViewChart, onDeleteChart }) => {
+  // Debug: log props
+  useEffect(() => {
+    console.log('DietHistoryList props dietCharts:', dietCharts);
+  }, [dietCharts]);
+
   const navigate = useNavigate();
   const [selectedChart, setSelectedChart] = useState(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);

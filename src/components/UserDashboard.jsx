@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -25,12 +25,15 @@ import BMICalculator from './BMICalculator';
 import { UserContext } from '../contexts/UserContext';
 
 const UserDashboard = () => {
-  const { userData, dietCharts, deleteDietChart } = useContext(UserContext);
+  const { userData, dietCharts, deleteDietChart, loadUserDietCharts, isLoadingCharts } = useContext(UserContext);
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  // Create the ref at component level, not inside useEffect
+  const hasInitiallyLoaded = useRef(false);
   
   // State for viewing saved diet chart
   const [selectedChart, setSelectedChart] = useState(null);
@@ -38,6 +41,11 @@ const UserDashboard = () => {
   
   // Tabs state
   const [currentTab, setCurrentTab] = useState(0);
+
+  // Debug: log dietCharts to verify they're loading - MOVED THIS HERE to maintain hook order
+  useEffect(() => {
+    console.log('Diet history data in Dashboard:', dietCharts);
+  }, [dietCharts]);
 
   // Add loading effect
   useEffect(() => {
@@ -68,20 +76,56 @@ const UserDashboard = () => {
     }
   }, [userData, isLoading]);
   
-  const handleTabChange = (event, newValue) => {
+  const handleTabChange = useCallback((event, newValue) => {
     setCurrentTab(newValue);
-  };
+  }, []);
+
+  // Reload diet history when switching to History tab, with protection against infinite loops
+  useEffect(() => {
+    if (currentTab === 2 && userData?.uid) {
+      // Only load if we haven't already loaded for this tab selection
+      if (!hasInitiallyLoaded.current) {
+        console.log("Diet History tab selected, loading charts for user:", userData.uid);
+        
+        // Mark that we've started loading
+        hasInitiallyLoaded.current = true;
+        
+        // Use a small delay to avoid any state update race conditions
+        const loadTimer = setTimeout(() => {
+          loadUserDietCharts(userData.uid)
+            .then(() => console.log("Diet charts reload complete"))
+            .catch(err => console.error("Error reloading diet charts:", err));
+        }, 300);
+        
+        return () => clearTimeout(loadTimer);
+      }
+    } else {
+      // Reset the loading flag when we switch away from tab 2
+      hasInitiallyLoaded.current = false;
+    }
+    
+    // No cleanup needed if we didn't set a timer
+    return undefined;
+  }, [currentTab, userData?.uid, loadUserDietCharts]);
   
-  const handleViewChart = (chart) => {
+  // Separate effect for debugging only - now safe because it doesn't have conditional hook calls
+  useEffect(() => {
+    // Only log if we're on the diet history tab
+    if (currentTab === 2) {
+      console.log('Diet charts data updated:', dietCharts?.length || 0, 'charts');
+    }
+  }, [dietCharts, currentTab]);
+  
+  const handleViewChart = useCallback((chart) => {
     setSelectedChart(chart);
     setViewChartDialogOpen(true);
-  };
+  }, []);
   
-  const handleCloseViewDialog = () => {
+  const handleCloseViewDialog = useCallback(() => {
     setViewChartDialogOpen(false);
-  };
+  }, []);
 
-  const handleDeleteChart = (chartId, allChartIds) => {
+  const handleDeleteChart = useCallback((chartId, allChartIds) => {
     // Bulk delete all saved charts at once
     if (chartId === "DELETE_ALL" && Array.isArray(allChartIds)) {
       deleteDietChart("DELETE_ALL", allChartIds);
@@ -89,14 +133,14 @@ const UserDashboard = () => {
       // Single chart deletion
       deleteDietChart(chartId);
     }
-  };
+  }, [deleteDietChart]);
   
-  const handleGoToProfile = () => {
+  const handleGoToProfile = useCallback(() => {
     navigate('/profile');
-  };
+  }, [navigate]);
   
   // Mobile-optimized styling for main dashboard paper - no left/right padding
-  const paperSx = isMobile 
+  const paperSx = useMemo(() => isMobile 
     ? { 
         p: { xs: 1, sm: 2 }, // Less padding on mobile, more on tablet
         px: 0,               // Remove left/right padding
@@ -111,7 +155,27 @@ const UserDashboard = () => {
         p: 3, 
         borderRadius: 2, 
         mb: 3 
-      };
+      }, [isMobile]);
+
+  // Safe access to user properties - MOVED UP before conditional returns to maintain hook order
+  const renderSafely = useCallback((property, formatter = (val) => val) => {
+    try {
+      const props = property.split('.');
+      let value = userData;
+      
+      for (const prop of props) {
+        value = value[prop];
+        if (value === undefined || value === null) {
+          return 'Not available';
+        }
+      }
+      
+      return formatter(value);
+    } catch (e) {
+      console.error('Error rendering property:', e);
+      return 'Not available';
+    }
+  }, [userData]);
 
   if (isLoading) {
     return (
@@ -148,26 +212,6 @@ const UserDashboard = () => {
     );
   }
   
-  // Safe access to user properties
-  const renderSafely = (property, formatter = (val) => val) => {
-    try {
-      const props = property.split('.');
-      let value = userData;
-      
-      for (const prop of props) {
-        value = value[prop];
-        if (value === undefined || value === null) {
-          return 'Not available';
-        }
-      }
-      
-      return formatter(value);
-    } catch (e) {
-      console.error('Error rendering property:', e);
-      return 'Not available';
-    }
-  };
-
   return (
     <>
       <Paper elevation={isMobile ? 1 : 3} sx={paperSx}>
@@ -399,7 +443,17 @@ const UserDashboard = () => {
         
         {currentTab === 2 && (
           <Box sx={{ px: isMobile ? 0 : 0 }}>
-            <DietHistoryList dietCharts={dietCharts || []} onViewChart={handleViewChart} onDeleteChart={handleDeleteChart} />
+            {isLoadingCharts ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <DietHistoryList 
+                dietCharts={dietCharts || []}
+                onViewChart={handleViewChart}
+                onDeleteChart={handleDeleteChart}
+              />
+            )}
           </Box>
         )}
         

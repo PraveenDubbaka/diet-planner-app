@@ -1706,7 +1706,13 @@ let customFoods = loadCustomFoods();
 // Kick off USDA fetch and remember the promise
 externalLoadPromise = (async () => {
   try {
-    const external = await fetchAllFoods(process.env.FDC_API_KEY);
+    // Use import.meta.env for Vite environment variables
+    const apiKey = import.meta.env.VITE_FDC_API_KEY;
+    if (!apiKey) {
+      console.warn('VITE_FDC_API_KEY not found in environment variables. External food loading skipped.');
+      return; // Skip fetching if API key is missing
+    }
+    const external = await fetchAllFoods(apiKey);
     external.forEach(item => {
       if (!foodDatabase.some(f => f.name.toLowerCase() === item.name.toLowerCase())) {
         item.isCustom = true;

@@ -31,7 +31,7 @@ import { UserContext } from '../contexts/UserContext';
 import { calculateBMI, calculateBMR, calculateTDEE, calculateCalorieNeeds, calculateMacros } from '../utils/calculations';
 
 const ProfileForm = () => {
-  const { userData, setUserData, isAuthenticated, changeUserPassword } = useContext(UserContext);
+  const { userData, updateUserProfileData, isAuthenticated, changeUserPassword } = useContext(UserContext);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -178,8 +178,7 @@ const ProfileForm = () => {
       const macros = calculateMacros(calorieNeeds, form.dietType, form.goal);
       
       // Create updated user data
-      const updatedUserData = {
-        ...userData,
+      const updatedData = {
         name: form.name,
         email: form.email,
         age: parseInt(form.age),
@@ -200,7 +199,7 @@ const ProfileForm = () => {
       };
       
       // Update user data in context
-      const result = await setUserData(updatedUserData);
+      const result = await updateUserProfileData(updatedData);
       
       if (result.success) {
         // Show success message

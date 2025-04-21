@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Box, Container, Toolbar } from '@mui/material';
 import Header from './components/Header';
@@ -14,27 +14,16 @@ import { UserContext, UserContextProvider } from './contexts/UserContext';
 
 // Protected route component to ensure authentication
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, userData } = React.useContext(UserContext);
-  const [isLoading, setIsLoading] = React.useState(true);
-  
-  React.useEffect(() => {
-    // Check if localStorage has user data
-    const storedUser = localStorage.getItem('userData');
-    if (!isAuthenticated && !storedUser) {
-      setIsLoading(false);
-    } else {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated]);
-  
-  if (isLoading) {
+  const { isAuthenticated, isAuthLoading } = useContext(UserContext);
+
+  if (isAuthLoading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>Loading...</Box>;
   }
-  
+
   if (!isAuthenticated) {
-    return <Navigate to="/auth" />;
+    return <Navigate to="/auth" replace />;
   }
-  
+
   return children;
 };
 
