@@ -1744,100 +1744,47 @@ const DietChart = ({ userData }) => {
             Print Diet Chart
           </Button>
           
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            {/* Display status message in a prominent way */}
-            {saveSuccessVisible && (
-              <Card 
-                elevation={4} 
-                sx={{ 
-                  mb: 2, 
-                  bgcolor: '#e8f5e9', 
-                  border: '1px solid #4caf50',
-                  px: 2,
-                  py: 1,
-                  borderRadius: 2,
-                  minWidth: 250,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box 
-                    sx={{ 
-                      bgcolor: '#4caf50',
-                      borderRadius: '50%',
-                      width: 24,
-                      height: 24,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: 'bold',
-                      fontSize: '16px'
-                    }}
-                  >
-                    ✓
-                  </Box>
-                  <Typography variant="body1" fontWeight="medium" color="primary.dark">
-                    Diet plan saved successfully!
-                  </Typography>
-                </Box>
-              </Card>
-            )}
-            
+          <Box sx={{ 
+            display: 'flex', 
+            gap: { xs: 0.5, md: 2 }, 
+            mt: { xs: 0, md: 0 },
+            justifyContent: 'flex-end',
+            ml: { xs: 0, md: 2 },
+            flexShrink: 0,
+            flexDirection: { xs: 'column', md: 'row' }  // Stack vertically on mobile, horizontal on larger screens
+          }}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              size="small"
+              startIcon={isMobile ? null : <PrintIcon />}
+              onClick={() => setPrintDialogOpen(true)}
+              sx={{ 
+                borderRadius: 2,
+                minWidth: { xs: '100%', md: 'auto' },  // Full width on mobile
+                px: { xs: 1, md: 2 },
+                py: { xs: 0.5, md: 1 },
+                mb: { xs: 1, md: 0 }  // Add bottom margin on mobile
+              }}
+            >
+              {isMobile ? <PrintIcon fontSize="small" /> : "Print Diet Chart"}
+            </Button>
             <Button 
               variant="contained" 
               color="success" 
-              startIcon={<SaveIcon />}
-              onClick={handleSaveDietChart}
+              size="small"
+              startIcon={isMobile ? null : <SaveIcon />}
+              onClick={handleSaveDietChart} 
               disabled={!hasUnsavedChanges}
               sx={{ 
                 borderRadius: 2,
-                position: 'relative',
-                zIndex: 1
+                minWidth: { xs: '100%', md: 'auto' },  // Full width on mobile
+                px: { xs: 1, md: 2 },
+                py: { xs: 0.5, md: 1 }
               }}
             >
-              {hasUnsavedChanges ? "Save Diet Plan" : "Saved"}
+              {isMobile ? <SaveIcon fontSize="small" /> : (hasUnsavedChanges ? "Save" : "Saved")}
             </Button>
-            
-            {/* Timestamp Card - Shown independent of save success message */}
-            {lastSavedTime && (
-              <Card 
-                elevation={2}
-                sx={{ 
-                  mt: 2, 
-                  p: 1.5, 
-                  borderRadius: 2,
-                  border: '1px solid #bdbdbd',
-                  minWidth: 230,
-                  bgcolor: 'rgba(76, 175, 80, 0.04)'
-                }}
-              >
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    fontStyle: 'italic',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1
-                  }}
-                >
-                  <Box 
-                    component="span" 
-                    sx={{ 
-                      color: 'text.secondary',
-                      display: 'inline-flex',
-                      alignItems: 'center'
-                    }}
-                  >
-                    🕒
-                  </Box>
-                  Last saved: {lastSavedTime.toLocaleString()}
-                </Typography>
-              </Card>
-            )}  
           </Box>
         </Box>
       </div>
@@ -1853,7 +1800,7 @@ const DietChart = ({ userData }) => {
             bgcolor: 'background.paper', 
             boxShadow: 3, 
             p: { xs: 1, md: 2 }, 
-            zIndex: 1000,
+            zIndex: 1100,
             borderTop: `4px solid ${theme.palette.primary.main}`,
             display: 'flex',
             flexDirection: { xs: 'row', md: 'row' },
@@ -1864,6 +1811,7 @@ const DietChart = ({ userData }) => {
             margin: '0 auto'
           }}
           className="no-print"
+          ref={bottomSectionRef}
         >
           <Grid container spacing={1} sx={{ 
             flexGrow: 1, 
