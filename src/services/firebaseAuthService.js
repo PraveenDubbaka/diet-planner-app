@@ -17,12 +17,16 @@ import { auth, db } from "../firebase/config";
 // User Registration
 export const registerUser = async (name, email, password) => {
   try {
+    console.log("Registration attempt for email:", email);
+    
     // Ensure the session persists across refreshes
     await setPersistence(auth, browserLocalPersistence);
     
     // Create user in Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    
+    console.log("User registered successfully:", user.uid);
     
     // Update profile with display name
     await updateProfile(user, {
@@ -47,7 +51,7 @@ export const registerUser = async (name, email, password) => {
     return { 
       success: true, 
       user: {
-        id: user.uid,
+        uid: user.uid, // Changed from id to uid to match context expectations
         name,
         email,
         emailVerified: user.emailVerified
@@ -80,6 +84,8 @@ export const registerUser = async (name, email, password) => {
 // User Login with performance optimization
 export const loginUser = async (email, password) => {
   try {
+    console.log("Login attempt for email:", email);
+    
     // Ensure the session persists across refreshes
     await setPersistence(auth, browserLocalPersistence);
     
@@ -88,30 +94,34 @@ export const loginUser = async (email, password) => {
     
     // Create a timeout promise to ensure we don't wait forever
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Authentication timeout")), 10000));
+      setTimeout(() => reject(new Error("Authentication timeout")), 15000)); // Increased timeout
     
     // Race the auth promise against the timeout
     const userCredential = await Promise.race([authPromise, timeoutPromise]);
     const user = userCredential.user;
     
+    console.log("Login successful for user:", user.uid);
+    
     let userData = {
-      id: user.uid,
+      uid: user.uid, // Changed from id to uid to match context expectations
       name: user.displayName || email.split('@')[0],
       email: user.email,
       emailVerified: user.emailVerified,
     };
     
     // Try to fetch Firestore data and include it in the response
-    // This makes the login slower but ensures we have complete profile data
     try {
+      console.log("Fetching user document from Firestore");
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
       
       if (userDoc.exists()) {
+        console.log("User document exists in Firestore");
         const firestoreData = userDoc.data();
         userData = { 
           ...userData, 
-          ...firestoreData 
+          ...firestoreData,
+          uid: user.uid // Ensure uid is preserved from auth
         };
         
         // Cache the full user data
@@ -119,7 +129,6 @@ export const loginUser = async (email, password) => {
         console.log("Complete user profile loaded during login");
       } else {
         // If the user document doesn't exist in Firestore, create it
-        // This ensures we always have a user document to store profile data
         console.log("Creating missing user document in Firestore during login");
         const newUserData = {
           name: user.displayName || email.split('@')[0],
@@ -135,7 +144,7 @@ export const loginUser = async (email, password) => {
         await setDoc(userRef, newUserData);
         
         // Update our userData object
-        userData = { ...userData, ...newUserData };
+        userData = { ...userData, ...newUserData, uid: user.uid };
         
         // Cache it
         localStorage.setItem(`user_${user.uid}`, JSON.stringify(userData));
@@ -162,13 +171,22 @@ export const loginUser = async (email, password) => {
       user: userData
     };
   } catch (error) {
-    // Simplify error handling for better performance
+    console.error("Login error:", error.code, error.message);
+    
+    // Expanded error handling for Firebase auth errors
     let errorMessage = "Login failed. Please try again.";
     
     if (!navigator.onLine || error.code === "auth/network-request-failed") {
       errorMessage = "You appear to be offline. Please check your internet connection.";
-    } else if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+    } else if (
+      error.code === "auth/user-not-found" || 
+      error.code === "auth/wrong-password" || 
+      error.code === "auth/invalid-credential" ||
+      error.code === "auth/invalid-email" ||
+      error.code === "auth/invalid-login-credentials" // Added this new Firebase error code
+    ) {
       errorMessage = "Invalid email or password";
+      console.log("Authentication error code:", error.code);
     } else if (error.code === "auth/too-many-requests") {
       errorMessage = "Too many login attempts. Please try again later.";
     } else if (error.message === "Authentication timeout") {

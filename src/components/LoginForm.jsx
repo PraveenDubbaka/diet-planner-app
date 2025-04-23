@@ -95,11 +95,15 @@ const LoginForm = ({ onToggleForm }) => {
     
     try {
       setIsLoggingIn(true);
+      console.log("Attempting login for:", form.email);
       const result = await login(form.email, form.password);
+      console.log("Login result:", result);
       
       if (result.success) {
+        console.log("Login successful, navigating to dashboard");
         navigate('/dashboard');
       } else {
+        console.log("Login failed:", result.message);
         // Special handling for offline or connectivity errors
         if (result.message?.includes("offline") || 
             result.message?.includes("network") || 
@@ -110,6 +114,7 @@ const LoginForm = ({ onToggleForm }) => {
         }
       }
     } catch (error) {
+      console.error("Login error caught in component:", error);
       // Check if the error is related to being offline
       if (!navigator.onLine || 
           error.message?.includes("offline") || 
@@ -119,7 +124,6 @@ const LoginForm = ({ onToggleForm }) => {
       } else {
         setLoginError('Login failed. Please try again.');
       }
-      console.error(error);
     } finally {
       setIsLoggingIn(false);
     }
@@ -162,7 +166,8 @@ const LoginForm = ({ onToggleForm }) => {
         setResetEmailError(result.message || 'Failed to send reset email. Please try again.');
       }
     } catch (error) {
-      setResetEmailError('An error occurred. Please try again later.');
+      // More specific error message for when the email doesn't exist
+      setResetEmailError('No account found with this email address. Please check your email or create a new account.');
       console.error(error);
     } finally {
       setIsResetting(false);

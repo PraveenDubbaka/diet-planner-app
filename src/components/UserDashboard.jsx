@@ -223,10 +223,24 @@ const UserDashboard = () => {
           value={currentTab} 
           onChange={handleTabChange} 
           variant={isMobile ? "scrollable" : "fullWidth"}
-          scrollButtons={isMobile ? "auto" : false}
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          aria-label="Dashboard navigation tabs"
           indicatorColor="primary"
           textColor="primary"
-          sx={{ mb: isMobile ? 2 : 3, px: isMobile ? 1 : 0 }}
+          sx={{ 
+            mb: isMobile ? 2 : 3, 
+            px: 0,
+            width: '100%',
+            '& .MuiTabs-flexContainer': {
+              justifyContent: isMobile ? 'flex-start' : 'center',
+            },
+            '& .MuiTab-root': {
+              minWidth: isMobile ? '80px' : '120px',
+              px: isMobile ? 1 : 2,
+              fontSize: isMobile ? '0.8rem' : 'inherit'
+            }
+          }}
         >
           <Tab label="Overview" />
           <Tab label="Diet Generator" />
@@ -235,15 +249,28 @@ const UserDashboard = () => {
         </Tabs>
         
         {currentTab === 0 && (
-          <Box sx={{ px: isMobile ? 1 : 0 }}>
-            <Typography variant="h6" gutterBottom sx={{ px: isMobile ? 1 : 0 }}>
+          <Box sx={{ px: 0 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 3, px: 0 }}>
               Profile Overview
             </Typography>
             
-            <Grid container spacing={isMobile ? 2 : 3} sx={{ width: '100%', mx: 0 }}>
+            <Grid 
+              container 
+              spacing={isMobile ? 3 : 4} 
+              sx={{ 
+                width: '100%', 
+                mx: 0,
+                pl: 0,
+                mb: 3,
+                '& > .MuiGrid-item': {
+                  paddingLeft: '0px !important', // Override Material UI's padding with !important
+                  mb: isMobile ? 3 : 4
+                }
+              }}
+            >
               <Grid item xs={12} md={6}>
-                <Card sx={{ height: '100%' }}>
-                  <CardContent>
+                <Card sx={{ height: '100%', ml: 0, mr: isMobile ? 0 : 2 }}>
+                  <CardContent sx={{ p: isMobile ? 2.5 : 3, pr: isMobile ? 2.5 : 4 }}>
                     <Typography variant="subtitle1" color="primary" gutterBottom>
                       Personal Information
                     </Typography>
@@ -323,7 +350,7 @@ const UserDashboard = () => {
               
               <Grid item xs={12} md={6}>
                 <Card sx={{ height: '100%' }}>
-                  <CardContent>
+                  <CardContent sx={{ p: isMobile ? 2.5 : 3 }}>
                     <Typography variant="subtitle1" color="primary" gutterBottom>
                       Diet & Nutrition
                     </Typography>

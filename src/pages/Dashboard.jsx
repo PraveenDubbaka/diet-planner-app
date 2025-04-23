@@ -1,22 +1,24 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Container, Typography, Box, CircularProgress, useMediaQuery, useTheme } from '@mui/material';
+import { Navigate } from 'react-router-dom';
 import UserDashboard from '../components/UserDashboard';
 import { UserContext } from '../contexts/UserContext';
 
 const Dashboard = () => {
-  const { userData, isAuthenticated } = useContext(UserContext);
+  const { userData, isAuthenticated, isAuthLoading } = useContext(UserContext);
   const [isLoading, setIsLoading] = useState(true);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
+    console.log("Dashboard mounted. Auth state:", { isAuthenticated, isAuthLoading, userData });
     // Give the user data a moment to load
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthenticated, isAuthLoading, userData]);
 
   // Custom container styles for mobile - removing left and right padding
   const containerStyle = isMobile ? {
@@ -26,7 +28,8 @@ const Dashboard = () => {
     width: '100vw' // Use viewport width
   } : {};
 
-  if (isLoading) {
+  // Show loading while auth is still being checked
+  if (isAuthLoading || isLoading) {
     return (
       <Container maxWidth={isMobile ? false : "lg"} disableGutters={isMobile} sx={containerStyle}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -34,6 +37,12 @@ const Dashboard = () => {
         </Box>
       </Container>
     );
+  }
+
+  // Redirect to auth page if not authenticated
+  if (!isAuthenticated) {
+    console.log("User not authenticated, redirecting to login");
+    return <Navigate to="/auth" replace />;
   }
 
   return (

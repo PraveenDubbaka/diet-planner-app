@@ -49,6 +49,8 @@ export const UserContextProvider = ({ children }) => {
               ? { ...userSnap.data(), uid: user.uid } 
               : { uid: user.uid, email: user.email };
             
+            console.log('User profile loaded:', profile);
+            
             if (isMounted) {
               setUserData(profile);
               setIsAuthenticated(true);
@@ -185,9 +187,29 @@ export const UserContextProvider = ({ children }) => {
   // Implement login function
   const handleLogin = async (email, password) => {
     try {
-      return await loginUser(email, password);
+      console.log("UserContext: handleLogin called for email:", email);
+      const result = await loginUser(email, password);
+      console.log("UserContext: Login service returned:", result);
+      
+      if (result.success && result.user) {
+        console.log("UserContext: Login successful, user data:", result.user);
+        // Manually set user data right away, don't wait for auth state change
+        setUserData(result.user);
+        setIsAuthenticated(true);
+        
+        // Force-load diet charts immediately after successful login
+        if (result.user.uid) {
+          loadUserDietCharts(result.user.uid).catch(err => 
+            console.error('Failed to load diet charts after login:', err)
+          );
+        }
+      } else {
+        console.log("UserContext: Login failed:", result.message);
+      }
+      
+      return result;
     } catch (error) {
-      console.error('Unexpected login error:', error);
+      console.error('UserContext: Unexpected login error:', error);
       return {
         success: false,
         message: error.message || 'Login failed due to an unexpected error'

@@ -11,9 +11,11 @@ import {
   Alert,
   FormControlLabel,
   Checkbox,
-  CircularProgress
+  CircularProgress,
+  Link
 } from '@mui/material';
 import { UserContext } from '../contexts/UserContext';
+import TermsAndConditionsDialog from './TermsAndConditionsDialog';
 
 const RegisterForm = ({ onToggleForm }) => {
   const { register } = useContext(UserContext);
@@ -31,6 +33,7 @@ const RegisterForm = ({ onToggleForm }) => {
   const [registrationError, setRegistrationError] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   
   const handleChange = (e) => {
     const { name, value, checked } = e.target;
@@ -109,6 +112,15 @@ const RegisterForm = ({ onToggleForm }) => {
     } finally {
       setIsRegistering(false);
     }
+  };
+
+  const handleOpenTerms = (e) => {
+    e.preventDefault();
+    setTermsDialogOpen(true);
+  };
+
+  const handleCloseTerms = () => {
+    setTermsDialogOpen(false);
   };
   
   return (
@@ -202,10 +214,22 @@ const RegisterForm = ({ onToggleForm }) => {
                   disabled={registrationSuccess || isRegistering}
                 />
               }
-              label="I agree to the terms and conditions"
+              label={
+                <Typography variant="body2">
+                  I agree to the{' '}
+                  <Link 
+                    href="#" 
+                    onClick={handleOpenTerms}
+                    underline="hover"
+                    sx={{ fontWeight: 'medium' }}
+                  >
+                    Terms and Conditions
+                  </Link>
+                </Typography>
+              }
             />
             {errors.acceptTerms && (
-              <Typography variant="caption" color="error">
+              <Typography variant="caption" color="error" display="block">
                 {errors.acceptTerms}
               </Typography>
             )}
@@ -242,6 +266,12 @@ const RegisterForm = ({ onToggleForm }) => {
           Sign In
         </Button>
       </Box>
+
+      {/* Terms and Conditions Dialog */}
+      <TermsAndConditionsDialog 
+        open={termsDialogOpen} 
+        onClose={handleCloseTerms} 
+      />
     </Paper>
   );
 };
