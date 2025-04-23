@@ -4,13 +4,13 @@ import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC1qMmxLcw0nx5Xbn42nc28g-Gb2x4RPHg",
-  authDomain: "diet-planner-app-16467.firebaseapp.com",
-  projectId: "diet-planner-app-16467",
-  storageBucket: "diet-planner-app-16467.appspot.com",
-  messagingSenderId: "500445862948",
-  appId: "1:500445862948:web:620f9d053051cfd7ed0cb1",
-  measurementId: "G-PX4T38MWJN"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
