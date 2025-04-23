@@ -14,44 +14,98 @@ import {
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 
-// User Registration
+// User Registration with improved error handling and reliability
 export const registerUser = async (name, email, password) => {
   try {
     console.log("Registration attempt for email:", email);
     
-    // Ensure the session persists across refreshes
-    await setPersistence(auth, browserLocalPersistence);
+    if (!email || !password || !name) {
+      console.error("Missing required registration fields");
+      return {
+        success: false,
+        message: "Name, email and password are all required",
+      };
+    }
     
-    // Create user in Firebase Auth
+    // Check for network connectivity
+    if (!navigator.onLine) {
+      console.warn("Registration attempted while offline");
+      return {
+        success: false,
+        message: "You appear to be offline. Please check your internet connection.",
+      };
+    }
+    
+    // Clear any previous auth errors
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        console.log("Found existing user session, signing out first");
+        await signOut(auth);
+      }
+    } catch (e) {
+      console.log("Error clearing previous auth state:", e);
+      // Continue anyway
+    }
+    
+    // Ensure persistence is set before attempting registration
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      console.log("Auth persistence set successfully for registration");
+    } catch (persistError) {
+      console.warn("Error setting auth persistence:", persistError);
+      // Continue anyway
+    }
+    
+    // Create user in Firebase Auth with better error handling
+    console.log("Creating new user account in Firebase Auth...");
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    console.log("User registered successfully:", user.uid);
+    console.log("User registered successfully with uid:", user.uid);
     
     // Update profile with display name
-    await updateProfile(user, {
-      displayName: name
-    });
+    try {
+      await updateProfile(user, {
+        displayName: name
+      });
+      console.log("User profile updated with display name");
+    } catch (profileError) {
+      console.warn("Error updating user profile:", profileError);
+      // Continue anyway, we'll store the name in Firestore
+    }
     
     // Send email verification
-    await sendEmailVerification(user);
+    try {
+      await sendEmailVerification(user);
+      console.log("Verification email sent");
+    } catch (emailError) {
+      console.warn("Error sending verification email:", emailError);
+      // Continue anyway
+    }
     
     // Create user document in Firestore
-    await setDoc(doc(db, "users", user.uid), {
-      name,
-      email,
-      createdAt: new Date().toISOString(),
-      emailVerified: false,
-      dietType: 'standard',
-      goal: 'maintain',
-      isGlutenFree: false,
-      // Add any other default user properties here
-    });
+    try {
+      console.log("Creating user document in Firestore...");
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        createdAt: new Date().toISOString(),
+        emailVerified: false,
+        dietType: 'standard',
+        goal: 'maintain',
+        isGlutenFree: false,
+      });
+      console.log("User document created in Firestore");
+    } catch (firestoreError) {
+      console.error("Error creating user document:", firestoreError);
+      // Don't fail registration if only Firestore fails
+    }
     
     return { 
       success: true, 
       user: {
-        uid: user.uid, // Changed from id to uid to match context expectations
+        uid: user.uid,
         name,
         email,
         emailVerified: user.emailVerified
@@ -68,9 +122,13 @@ export const registerUser = async (name, email, password) => {
     } else if (error.code === "auth/invalid-email") {
       errorMessage = "Invalid email format. Please check your email.";
     } else if (error.code === "auth/weak-password") {
-      errorMessage = "Password is too weak. Please use a stronger password.";
+      errorMessage = "Password is too weak. Please use a stronger password (at least 6 characters).";
     } else if (error.code === "auth/network-request-failed") {
       errorMessage = "Network error. Please check your internet connection.";
+    } else if (error.code === "auth/operation-not-allowed") {
+      errorMessage = "Email/password accounts are not enabled. Please contact support.";
+    } else if (error.code === "auth/internal-error") {
+      errorMessage = "An internal error occurred. Please try again later.";
     }
     
     return {
@@ -81,29 +139,59 @@ export const registerUser = async (name, email, password) => {
   }
 };
 
-// User Login with performance optimization
+// User Login with improved error handling and reliability
 export const loginUser = async (email, password) => {
   try {
     console.log("Login attempt for email:", email);
     
+    if (!email || !password) {
+      console.error("Missing email or password for login");
+      return {
+        success: false,
+        message: "Email and password are required",
+      };
+    }
+    
+    // Check for network connectivity
+    if (!navigator.onLine) {
+      console.warn("Login attempted while offline");
+      return {
+        success: false,
+        message: "You appear to be offline. Please check your internet connection.",
+      };
+    }
+    
+    // Clear any previous auth errors
+    try {
+      // Sometimes auth can be in a bad state, this helps clear it
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        console.log("Found existing user session, will sign out first to ensure clean login");
+        await signOut(auth);
+      }
+    } catch (e) {
+      console.log("Error clearing previous auth state:", e);
+      // Don't fail the login if this doesn't work
+    }
+    
     // Ensure the session persists across refreshes
-    await setPersistence(auth, browserLocalPersistence);
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      console.log("Auth persistence set successfully");
+    } catch (persistError) {
+      console.warn("Error setting auth persistence:", persistError);
+      // Continue login attempt even if persistence fails
+    }
     
-    // Start authentication - with a timeout to prevent hanging
-    const authPromise = signInWithEmailAndPassword(auth, email, password);
-    
-    // Create a timeout promise to ensure we don't wait forever
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Authentication timeout")), 15000)); // Increased timeout
-    
-    // Race the auth promise against the timeout
-    const userCredential = await Promise.race([authPromise, timeoutPromise]);
+    // Start authentication with a more robust approach
+    console.log("Starting Firebase authentication...");
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
     console.log("Login successful for user:", user.uid);
     
     let userData = {
-      uid: user.uid, // Changed from id to uid to match context expectations
+      uid: user.uid,
       name: user.displayName || email.split('@')[0],
       email: user.email,
       emailVerified: user.emailVerified,
@@ -183,14 +271,19 @@ export const loginUser = async (email, password) => {
       error.code === "auth/wrong-password" || 
       error.code === "auth/invalid-credential" ||
       error.code === "auth/invalid-email" ||
-      error.code === "auth/invalid-login-credentials" // Added this new Firebase error code
+      error.code === "auth/invalid-login-credentials" || // New Firebase error code
+      error.code === "auth/user-disabled" ||
+      error.code === "auth/operation-not-allowed" ||
+      error.code === "auth/account-exists-with-different-credential"
     ) {
-      errorMessage = "Invalid email or password";
+      errorMessage = "Invalid email or password. Please check your credentials.";
       console.log("Authentication error code:", error.code);
     } else if (error.code === "auth/too-many-requests") {
-      errorMessage = "Too many login attempts. Please try again later.";
+      errorMessage = "Too many login attempts. Please try again later or reset your password.";
     } else if (error.message === "Authentication timeout") {
       errorMessage = "Login timed out. Please check your connection and try again.";
+    } else if (error.code === "auth/internal-error") {
+      errorMessage = "Authentication service error. Please try again later.";
     }
     
     return {
