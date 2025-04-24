@@ -1744,49 +1744,105 @@ const DietChart = ({ userData }) => {
             Print Diet Chart
           </Button>
           
-          <Box sx={{ 
-            display: 'flex', 
-            gap: { xs: 0.5, md: 2 }, 
-            mt: { xs: 0, md: 0 },
-            justifyContent: 'flex-end',
-            ml: { xs: 0, md: 2 },
-            flexShrink: 0,
-            flexDirection: { xs: 'column', md: 'row' }  // Stack vertically on mobile, horizontal on larger screens
-          }}>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              size="small"
-              startIcon={isMobile ? null : <PrintIcon />}
-              onClick={() => setPrintDialogOpen(true)}
-              sx={{ 
-                borderRadius: 2,
-                minWidth: { xs: '100%', md: 'auto' },  // Full width on mobile
-                px: { xs: 1, md: 2 },
-                py: { xs: 0.5, md: 1 },
-                mb: { xs: 1, md: 0 }  // Add bottom margin on mobile
-              }}
-            >
-              {isMobile ? <PrintIcon fontSize="small" /> : "Print Diet Chart"}
-            </Button>
-            <Button 
+          <Button 
               variant="contained" 
               color="success" 
-              size="small"
-              startIcon={isMobile ? null : <SaveIcon />}
-              onClick={handleSaveDietChart} 
+              startIcon={<SaveIcon />}
+              onClick={handleSaveDietChart}
               disabled={!hasUnsavedChanges}
               sx={{ 
                 borderRadius: 2,
-                minWidth: { xs: '100%', md: 'auto' },  // Full width on mobile
-                px: { xs: 1, md: 2 },
-                py: { xs: 0.5, md: 1 }
+                position: 'relative',
+                zIndex: 1
               }}
             >
-              {isMobile ? <SaveIcon fontSize="small" /> : (hasUnsavedChanges ? "Save" : "Saved")}
+              {hasUnsavedChanges ? "Save Diet Plan" : "Saved"}
             </Button>
-          </Box>
+
+         
         </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '16px'}}>
+            {/* Display status message in a prominent way */}
+            {saveSuccessVisible && (
+              <Card 
+                elevation={4} 
+                sx={{ 
+                  mb: 2, 
+                  bgcolor: '#e8f5e9', 
+                  border: '1px solid #4caf50',
+                  px: 2,
+                  py: 1,
+                  borderRadius: 2,
+                  minWidth: 250,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box 
+                    sx={{ 
+                      bgcolor: '#4caf50',
+                      borderRadius: '50%',
+                      width: 24,
+                      height: 24,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      fontSize: '16px'
+                    }}
+                  >
+                    ✓
+                  </Box>
+                  <Typography variant="body1" fontWeight="medium" color="primary.dark">
+                    Diet plan saved successfully!
+                  </Typography>
+                </Box>
+              </Card>
+            )}
+            
+
+            
+            {/* Timestamp Card - Shown independent of save success message */}
+            {lastSavedTime && (
+              <Card 
+                elevation={2}
+                sx={{ 
+                  mt: 2, 
+                  p: 1.5, 
+                  borderRadius: 2,
+                  border: '1px solid #bdbdbd',
+                  minWidth: 230,
+                  bgcolor: 'rgba(76, 175, 80, 0.04)'
+                }}
+              >
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontStyle: 'italic',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1
+                  }}
+                >
+                  <Box 
+                    component="span" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    🕒
+                  </Box>
+                  Last saved: {lastSavedTime.toLocaleString()}
+                </Typography>
+              </Card>
+            )}  
+          </Box>
       </div>
 
       {/* Sticky Total Nutrients section - shows when original is scrolled out of view */}
